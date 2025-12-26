@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+	<ProjectReference Include="..\CheckersModels\CheckersModels.csproj" />
   </ItemGroup>
+	
 
 </Project>
