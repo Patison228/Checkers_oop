@@ -52,7 +52,7 @@ namespace CheckersClient.ViewModels
         private void OnPlayerJoined(string playerName, GameState gameState)
         {
             Status = "Игра началась!";
-            OpenGameWindow(gameState);
+            OpenGameWindow(gameState);  // Теперь работает!
         }
 
         private void OnError(string error)
@@ -64,12 +64,18 @@ namespace CheckersClient.ViewModels
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
+                var gameVM = new GameViewModel()
+                {
+                    GameState = gameState,
+                    SignalRService = _signalRService
+                };
+
                 var gameWindow = new GameWindow();
-                gameWindow.GameViewModel.GameState = gameState;
-                gameWindow.GameViewModel.SignalRService = _signalRService;
+                gameWindow.DataContext = gameVM;  // ← КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
                 gameWindow.Show();
                 Application.Current.MainWindow.Close();
             });
         }
+
     }
 }

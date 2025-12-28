@@ -5,12 +5,24 @@ namespace CheckersClient.Views
 {
     public partial class GameWindow : Window
     {
-        public GameViewModel GameViewModel => (GameViewModel)DataContext;
-
         public GameWindow()
         {
             InitializeComponent();
-            DataContext = GameViewModel = new GameViewModel();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                "Выйти в главное меню?\nИгра будет завершена.",
+                "Шашки Онлайн",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                Close();
+            }
         }
     }
 }
