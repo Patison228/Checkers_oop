@@ -6,37 +6,41 @@ namespace CheckersModels.GameLogic
     {
         public static void InitializeBoard(GameState gameState)
         {
+            gameState.Board = new List<List<SimpleCell>>();
+
             for (int row = 0; row < 8; row++)
             {
+                var rowCells = new List<SimpleCell>();
                 for (int col = 0; col < 8; col++)
                 {
-                    var cell = new Cell { Row = row, Col = col };
+                    var cell = new SimpleCell { Row = row, Col = col };
 
                     if ((row + col) % 2 == 0)
                     {
-                        cell.Color = PieceColor.None;
-                        cell.Type = PieceType.Empty;
+                        cell.Color = "None";
+                        cell.Type = "Empty";
                     }
                     else
                     {
                         if (row < 3)
                         {
-                            cell.Color = PieceColor.White;
-                            cell.Type = PieceType.Man;
+                            cell.Color = "White";
+                            cell.Type = "Man";
                         }
                         else if (row > 4)
                         {
-                            cell.Color = PieceColor.Black;
-                            cell.Type = PieceType.Man;
+                            cell.Color = "Black";
+                            cell.Type = "Man";
                         }
                         else
                         {
-                            cell.Color = PieceColor.None;
-                            cell.Type = PieceType.Empty;
+                            cell.Color = "None";
+                            cell.Type = "Empty";
                         }
                     }
-                    gameState.Board[row, col] = cell;
+                    rowCells.Add(cell);
                 }
+                gameState.Board.Add(rowCells);
             }
         }
 
@@ -46,31 +50,34 @@ namespace CheckersModels.GameLogic
                 move.ToRow < 0 || move.ToRow >= 8 || move.ToCol < 0 || move.ToCol >= 8)
                 return false;
 
-            var fromCell = gameState.Board[move.FromRow, move.FromCol];
-            var toCell = gameState.Board[move.ToRow, move.ToCol];
+            var fromCell = gameState.Board[move.FromRow][move.FromCol];
+            var toCell = gameState.Board[move.ToRow][move.ToCol];
 
-            if (fromCell.Color != (gameState.CurrentPlayer == "White" ? PieceColor.White : PieceColor.Black))
+            PieceColor fromColor = fromCell.Color == "White" ? PieceColor.White :
+                                 fromCell.Color == "Black" ? PieceColor.Black : PieceColor.None;
+
+            if (fromColor != (gameState.CurrentPlayer == "White" ? PieceColor.White : PieceColor.Black))
                 return false;
 
-            if (toCell.Type != PieceType.Empty)
+            if (toCell.Type != "Empty")
                 return false;
 
             int rowDiff = Math.Abs(move.ToRow - move.FromRow);
             int colDiff = Math.Abs(move.ToCol - move.FromCol);
-
             return rowDiff == 1 && colDiff == 1;
         }
 
         public static void MakeMove(GameState gameState, Move move)
         {
-            var fromCell = gameState.Board[move.FromRow, move.FromCol];
-            gameState.Board[move.ToRow, move.ToCol] = fromCell;
-            gameState.Board[move.FromRow, move.FromCol] = new Cell
+            var fromCell = gameState.Board[move.FromRow][move.FromCol];
+            gameState.Board[move.ToRow][move.ToCol] = fromCell;
+
+            gameState.Board[move.FromRow][move.FromCol] = new SimpleCell
             {
                 Row = move.FromRow,
                 Col = move.FromCol,
-                Color = PieceColor.None,
-                Type = PieceType.Empty
+                Color = "None",
+                Type = "Empty"
             };
 
             gameState.CurrentPlayer = gameState.CurrentPlayer == "White" ? "Black" : "White";

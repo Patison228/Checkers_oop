@@ -4,7 +4,7 @@ namespace CheckersModels.Models
 {
     public class GameState
     {
-        public Cell[,] Board { get; set; } = new Cell[8, 8];
+        public List<List<SimpleCell>> Board { get; set; } = new(); 
         public string CurrentPlayer { get; set; } = "White";
         public string RoomId { get; set; } = "";
         public string Player1 { get; set; } = "";
