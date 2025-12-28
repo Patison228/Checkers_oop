@@ -23,7 +23,7 @@
                     Width="250" Height="60" FontSize="18"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="2" Text="Сервер: https://localhost:5001" 
+        <TextBlock Grid.Row="2" Text="Сервер: https://localhost:7026" 
                    HorizontalAlignment="Center" Margin="0,20" FontSize="12" 
                    Foreground="Gray"/>
     </Grid>
