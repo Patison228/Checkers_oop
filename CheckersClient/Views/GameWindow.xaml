@@ -1,12 +1,53 @@
 ﻿<Window x:Class="CheckersClient.Views.GameWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:CheckersClient.Views"
-        mc:Ignorable="d"
-        Title="GameWindow" Height="450" Width="800">
+        xmlns:models="clr-namespace:CheckersClient.Models;assembly=CheckersClient"
+        Title="Шашки" Height="700" Width="800"
+        WindowStartupLocation="CenterScreen">
     <Grid>
-        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="20">
+            <TextBlock Text="{Binding CurrentPlayer}" FontSize="20" FontWeight="Bold" 
+                       VerticalAlignment="Center" Margin="0,0,20,0"/>
+            <Button Content="В меню" Command="Close" Padding="10,5" Margin="0,0,20,0"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Margin="20" BorderBrush="Black" BorderThickness="3">
+            <Grid>
+                <UniformGrid Rows="8" Columns="8" Background="Transparent">
+                    <ItemsControl ItemsSource="{Binding Board}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="8" Columns="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:ObservableCell}">
+                                <Button Width="70" Height="70" Margin="2"
+                                        Background="{Binding ., Converter={StaticResource CellColorConverter}}"
+                                        Command="{Binding DataContext.CellClickCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Row, Converter={StaticResource CellIndexConverter}, ConverterParameter={x:Static sys:Int32.MaxValue}}">
+                                    <Ellipse Width="55" Height="55" Stroke="DarkBlue" StrokeThickness="2">
+                                        <Ellipse.Fill>
+                                            <SolidColorBrush Color="{Binding Color, Converter={StaticResource PieceColorToColorConverter}}"/>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </UniformGrid>
+            </Grid>
+        </Border>
+
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>Нажмите на свою шашку, затем на пустую клетку</StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>
