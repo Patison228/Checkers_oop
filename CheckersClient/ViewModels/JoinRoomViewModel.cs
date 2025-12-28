@@ -41,7 +41,7 @@ namespace CheckersClient.ViewModels
         private async void JoinRoom()
         {
             Status = "Подключение...";
-            await _signalRService.ConnectAsync("https://localhost:5001/checkersHub");
+            await _signalRService.ConnectAsync("https://localhost:7026/checkersHub");
             await _signalRService.JoinRoomAsync(RoomId, PlayerName);
         }
     }

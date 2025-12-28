@@ -38,7 +38,7 @@ namespace CheckersClient.ViewModels
 
         private async void ConnectAndCreateRoom()
         {
-            await _signalRService.ConnectAsync("https://localhost:5001/checkersHub");
+            await _signalRService.ConnectAsync("https://localhost:7026/checkersHub");
             await _signalRService.CreateRoomAsync(PlayerName);
         }
 
@@ -52,7 +52,7 @@ namespace CheckersClient.ViewModels
         private void OnPlayerJoined(string playerName, GameState gameState)
         {
             Status = "Игра началась!";
-            OpenGameWindow(gameState);  // Теперь работает!
+            OpenGameWindow(gameState);  
         }
 
         private void OnError(string error)
@@ -71,7 +71,7 @@ namespace CheckersClient.ViewModels
                 };
 
                 var gameWindow = new GameWindow();
-                gameWindow.DataContext = gameVM;  // ← КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
+                gameWindow.DataContext = gameVM;  
                 gameWindow.Show();
                 Application.Current.MainWindow.Close();
             });
