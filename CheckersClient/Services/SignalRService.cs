@@ -1,5 +1,6 @@
 ﻿using CheckersModels.Models;
 using Microsoft.AspNetCore.SignalR.Client;
+using System;
 
 namespace CheckersClient.Services
 {
@@ -19,19 +20,28 @@ namespace CheckersClient.Services
                 .WithAutomaticReconnect()
                 .Build();
 
-            _connection.On<string, GameState>("RoomCreated",
-                (roomId, state) => RoomCreated?.Invoke(roomId, state));
+            _connection.On<string, GameState>("RoomCreated", (roomId, state) =>
+            {
+                RoomCreated?.Invoke(roomId, state);
+            });
 
-            _connection.On<string, GameState>("PlayerJoined",
-                (player, state) => PlayerJoined?.Invoke(player, state));
+            _connection.On<string, GameState>("PlayerJoined", (player, state) =>
+            {
+                PlayerJoined?.Invoke(player, state);
+            });
 
-            _connection.On<GameState>("BoardUpdated",
-                state => BoardUpdated?.Invoke(state));
+            _connection.On<GameState>("BoardUpdated", state =>
+            {
+                BoardUpdated?.Invoke(state);
+            });
 
-            _connection.On<string>("Error",
-                error => ErrorReceived?.Invoke(error));
+            _connection.On<string>("Error", error =>
+            {
+                ErrorReceived?.Invoke(error);
+            });
 
             await _connection.StartAsync();
+            Console.WriteLine("SignalR connected");
         }
 
         public Task CreateRoomAsync(string playerName) =>
