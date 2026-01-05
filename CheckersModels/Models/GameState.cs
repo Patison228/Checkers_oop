@@ -1,7 +1,7 @@
 ﻿using CheckersModels.Models;
 using System.Collections.Generic;
 
-namespace CheckersServer.Models
+namespace CheckersModels.Models
 {
     // Состояние одной партии в комнате
     public class GameState
