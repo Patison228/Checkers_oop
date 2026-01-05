@@ -1,0 +1,40 @@
+﻿<Window x:Class="CheckersClient.Views.GameWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Шашки" Height="600" Width="700">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Статус -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="20">
+            <TextBlock Text="{Binding CurrentPlayer}" FontSize="24" FontWeight="Bold"/>
+            <TextBlock Text="{Binding Status}" FontSize="18" Margin="20,0"/>
+        </StackPanel>
+
+        <!-- Доска 8x8 -->
+        <UniformGrid Grid.Row="1" Rows="8" Columns="8" Margin="20">
+            <ItemsControl ItemsSource="{Binding Board}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Padding="0"
+                                Background="{Binding Background}"
+                                Command="{Binding DataContext.CellClicked, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}">
+                            
+                            <Ellipse Width="45" Height="45" Stroke="Black" StrokeThickness="2"
+                                     Fill="{Binding PieceBrush}"/>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </UniformGrid>
+
+        <!-- Инструкция -->
+        <TextBlock Grid.Row="2" Text="Кликните на свою шашку для хода" 
+               HorizontalAlignment="Center" Margin="20" Foreground="Gray"/>
+    </Grid>
+</Window>
