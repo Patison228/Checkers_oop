@@ -10,6 +10,8 @@ namespace CheckersClient.Models
         private readonly int _row, _col;
         private string _pieceColor = "None";
         private bool _isKing;
+        private bool _isSelected;
+        private bool _isPossibleMove;
 
         public CellViewModel(int row, int col)
         {
@@ -29,6 +31,7 @@ namespace CheckersClient.Models
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PieceWpfColor));
                 OnPropertyChanged(nameof(PieceVisibility));
+                OnPropertyChanged(nameof(Background));
             }
         }
 
@@ -38,12 +41,32 @@ namespace CheckersClient.Models
             set { _isKing = value; OnPropertyChanged(); }
         }
 
-        // Шахматная доска
-        public Brush Background => (Row + Col) % 2 == 0
-            ? Brushes.SaddleBrown   // Тёмная клетка
-            : Brushes.Ivory;        // Светлая клетка
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                _isSelected = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Background));
+            }
+        }
 
-        // Цвет шашки
+        public bool IsPossibleMove
+        {
+            get => _isPossibleMove;
+            set
+            {
+                _isPossibleMove = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Background));
+            }
+        }
+
+        public Brush Background => IsSelected ? Brushes.LightYellow :
+                                  IsPossibleMove ? Brushes.LightGreen :
+                                  (Row + Col) % 2 == 0 ? Brushes.SaddleBrown : Brushes.Ivory;
+
         public Brush PieceWpfColor => PieceColor switch
         {
             "White" => Brushes.WhiteSmoke,
@@ -51,10 +74,8 @@ namespace CheckersClient.Models
             _ => Brushes.Transparent
         };
 
-        // Видимость шашки
         public Visibility PieceVisibility => PieceColor == "None"
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+            ? Visibility.Collapsed : Visibility.Visible;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)

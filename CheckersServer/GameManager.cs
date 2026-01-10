@@ -122,16 +122,33 @@ namespace CheckersServer
             if (from.PieceColor != playerColor || to.PieceColor != "None")
                 return false;
 
-            int rowDiff = move.ToRow - move.FromRow;
+            int rowDiff = Math.Abs(move.ToRow - move.FromRow);
             int colDiff = Math.Abs(move.ToCol - move.FromCol);
 
-            if (colDiff != 1)
-                return false;
+            // Обычный ход (1 клетка)
+            if (rowDiff == 1 && colDiff == 1)
+            {
+                int rowDir = playerColor == "White" ? -1 : 1;
+                if ((move.ToRow - move.FromRow) != rowDir && !from.IsKing)
+                    return false;
+                return true;
+            }
 
-            if (playerColor == "White" && rowDiff != -1 && !from.IsKing) return false;
-            if (playerColor == "Black" && rowDiff != 1 && !from.IsKing) return false;
+            // Взятие (2 клетки, через вражескую шашку)
+            if (rowDiff == 2 && colDiff == 2)
+            {
+                // Проверяем вражескую шашку ПОСРЕДИНУ
+                int midRow = (move.FromRow + move.ToRow) / 2;
+                int midCol = (move.FromCol + move.ToCol) / 2;
+                var midCell = game.Board[midRow][midCol];
 
-            return true;
+                string opponent = playerColor == "White" ? "Black" : "White";
+                if (midCell.PieceColor != opponent) return false;
+
+                return true;
+            }
+
+            return false;
         }
 
         private void ApplyMove(GameState game, MoveRequest move, string playerColor)
@@ -145,6 +162,16 @@ namespace CheckersServer
             from.PieceColor = "None";
             from.IsKing = false;
 
+            // Удаляем взятую шашку (если взятие)
+            int rowDiff = Math.Abs(move.ToRow - move.FromRow);
+            if (rowDiff == 2)
+            {
+                int midRow = (move.FromRow + move.ToRow) / 2;
+                int midCol = (move.FromCol + move.ToCol) / 2;
+                game.Board[midRow][midCol].PieceColor = "None";
+            }
+
+            // Дамка
             if (playerColor == "White" && move.ToRow == 0) to.IsKing = true;
             if (playerColor == "Black" && move.ToRow == 7) to.IsKing = true;
         }
