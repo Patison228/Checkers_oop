@@ -1,60 +1,87 @@
-using Microsoft.AspNetCore.SignalR;
-using CheckersModels.GameLogic;
+﻿using System.Threading.Tasks;
 using CheckersModels.Models;
+using Microsoft.AspNetCore.SignalR;
 
 namespace CheckersServer.Hubs
 {
     public class CheckersHub : Hub
     {
-        private static readonly Dictionary<string, GameState> _rooms = new();
+        private readonly GameManager _gameManager;
 
-        public async Task CreateRoom(string playerName)
+        public CheckersHub(GameManager gameManager)
         {
-            var roomId = Guid.NewGuid().ToString()[..8].ToUpper();
-            var gameState = new GameState
-            {
-                RoomId = roomId,
-                Player1 = playerName,
-                IsGameStarted = false
-            };
-            GameEngine.InitializeBoard(gameState);
-            _rooms[roomId] = gameState;
-
-            await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
-            await Clients.Group(roomId).SendAsync("RoomCreated", roomId, gameState);
+            _gameManager = gameManager;
         }
 
-        public async Task JoinRoom(string roomId, string playerName)
+        // Создать комнату, вернуть RoomId и стартовое состояние
+        public async Task CreateRoom()
         {
-            if (!_rooms.TryGetValue(roomId, out var gameState))
+            var connectionId = Context.ConnectionId;
+
+            var game = _gameManager.CreateRoom(connectionId);
+
+            await Groups.AddToGroupAsync(connectionId, game.RoomId);
+
+            await Clients.Caller.SendAsync("RoomCreated", game.RoomId, game);
+        }
+
+        // Подключиться к существующей комнате по RoomId
+        public async Task JoinRoom(string roomId)
+        {
+            var connectionId = Context.ConnectionId;
+
+            var game = _gameManager.JoinRoom(roomId, connectionId);
+            if (game == null)
             {
-                await Clients.Caller.SendAsync("Error", "������� �� �������");
+                await Clients.Caller.SendAsync("JoinFailed", "Комната не найдена или уже занята");
                 return;
             }
 
-            if (!string.IsNullOrEmpty(gameState.Player2))
-            {
-                await Clients.Caller.SendAsync("Error", "������� ��� ������");
-                return;
-            }
+            await Groups.AddToGroupAsync(connectionId, roomId);
 
-            gameState.Player2 = playerName;
-            gameState.IsGameStarted = true;
-
-            await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
-            await Clients.Group(roomId).SendAsync("PlayerJoined", playerName, gameState);
+            // Уведомляем обоих игроков полным состоянием
+            await Clients.Group(roomId).SendAsync("GameStarted", game);
         }
 
-        public async Task MakeMove(string roomId, Move move)
+        // Получение текущего состояния (на случай переподключения)
+        public Task GetState(string roomId)
         {
-            if (_rooms.TryGetValue(roomId, out var gameState))
+            var game = _gameManager.GetGame(roomId);
+            if (game != null)
             {
-                if (GameEngine.IsValidMove(gameState, move))
+                return Clients.Caller.SendAsync("StateUpdated", game);
+            }
+
+            return Clients.Caller.SendAsync("JoinFailed", "Комната не найдена");
+        }
+
+        // Ход игрока
+        public async Task MakeMove(MoveRequest move)
+        {
+            var connectionId = Context.ConnectionId;
+
+            if (_gameManager.TryApplyMove(connectionId, move, out var updated) && updated != null)
+            {
+                // Рассылаем новое состояние всем в комнате
+                await Clients.Group(move.RoomId).SendAsync("StateUpdated", updated);
+
+                if (updated.IsGameOver)
                 {
-                    GameEngine.MakeMove(gameState, move);
-                    await Clients.Group(roomId).SendAsync("BoardUpdated", gameState);
+                    await Clients.Group(move.RoomId)
+                        .SendAsync("GameOver", updated.Winner);
                 }
             }
+            else
+            {
+                await Clients.Caller.SendAsync("MoveRejected", "Недопустимый ход");
+            }
+        }
+
+        public override async Task OnDisconnectedAsync(System.Exception? exception)
+        {
+            // Минимальный вариант: просто уведомить группу, что кто-то вышел
+            await base.OnDisconnectedAsync(exception);
+            // При желании можно здесь помечать игру как завершённую
         }
     }
 }
