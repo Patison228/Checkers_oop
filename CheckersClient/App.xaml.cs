@@ -30,7 +30,6 @@ namespace CheckersClient
                 DataContext = mainVM
             };
 
-            MainWindow = mainWindow;
             mainWindow.Show();
 
             base.OnStartup(e);

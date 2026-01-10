@@ -15,11 +15,13 @@ namespace CheckersClient.Views
         private void CreateRoom_Click(object sender, RoutedEventArgs e)
         {
             Vm.OpenCreateRoom();
+            this.Close();
         }
 
         private void JoinRoom_Click(object sender, RoutedEventArgs e)
         {
             Vm.OpenJoinRoom();
+            this.Close();
         }
     }
 }

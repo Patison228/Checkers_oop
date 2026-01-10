@@ -24,6 +24,7 @@ namespace CheckersClient.ViewModels
         {
             _signalRService = signalRService;
             _signalRService.RoomCreated += OnRoomCreated;
+            _signalRService.GameStarted += OnGameStarted;
             CreateRoomAsync();
         }
 
@@ -36,6 +37,16 @@ namespace CheckersClient.ViewModels
         {
             _roomId = roomId;
             Status = $"Комната {roomId} создана. Жду второго игрока...";
+        }
+
+        private void OnGameStarted(GameState state)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var gameWindow = new GameWindow();
+                gameWindow.DataContext = new GameViewModel(_signalRService, state);
+                gameWindow.Show();
+            });
         }
     }
 }
