@@ -50,7 +50,6 @@ namespace CheckersClient.ViewModels
                 var gameWindow = new GameWindow();
                 gameWindow.DataContext = new GameViewModel(_signalRService, state);
                 gameWindow.Show();
-                Application.Current.MainWindow?.Close();
             });
         }
 

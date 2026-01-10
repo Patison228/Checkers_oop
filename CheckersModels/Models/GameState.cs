@@ -17,7 +17,6 @@ namespace CheckersModels.Models
         public bool IsGameOver { get; set; }
         public string Winner { get; set; } = string.Empty;
 
-        // Доска 8x8 как список списков, удобный для JSON
         public List<List<Cell>> Board { get; set; } = new();
     }
 }
