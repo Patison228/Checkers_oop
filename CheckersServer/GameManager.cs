@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using CheckersModels.Models;
 
 namespace CheckersServer
@@ -19,7 +20,7 @@ namespace CheckersServer
                 Player1ConnectionId = connectionId,
                 IsGameStarted = false,
                 IsGameOver = false,
-                CurrentPlayer = "White",
+                CurrentPlayer = "White", // Белые ходят первыми
                 Board = CreateInitialBoard()
             };
 
@@ -33,7 +34,7 @@ namespace CheckersServer
                 return null;
 
             if (!string.IsNullOrEmpty(game.Player2ConnectionId))
-                return null; 
+                return null;
 
             game.Player2ConnectionId = connectionId;
             game.IsGameStarted = true;
@@ -56,14 +57,14 @@ namespace CheckersServer
             var playerColor = game.Player1ConnectionId == connectionId ? "White" :
                               game.Player2ConnectionId == connectionId ? "Black" : null;
 
-            if (playerColor == null || playerColor != game.CurrentPlayer || !game.IsGameStarted || game.IsGameOver)
+            if (playerColor == null || playerColor != game.CurrentPlayer ||
+                !game.IsGameStarted || game.IsGameOver)
                 return false;
 
             if (!IsMoveValid(game, move, playerColor))
                 return false;
 
             ApplyMove(game, move, playerColor);
-
             game.CurrentPlayer = game.CurrentPlayer == "White" ? "Black" : "White";
 
             if (IsNoPiecesForOpponent(game, playerColor))
@@ -93,11 +94,11 @@ namespace CheckersServer
                         IsKing = false
                     };
 
-                    if ((row + col) % 2 == 1) 
+                    if ((row + col) % 2 == 0)
                     {
-                        if (row < 3)
+                        if (row <= 2) 
                             cell.PieceColor = "Black";
-                        else if (row > 4)
+                        else if (row >= 5) 
                             cell.PieceColor = "White";
                     }
 
@@ -111,19 +112,14 @@ namespace CheckersServer
 
         private bool IsMoveValid(GameState game, MoveRequest move, string playerColor)
         {
-            if (move.FromRow < 0 || move.FromRow > 7 ||
-                move.FromCol < 0 || move.FromCol > 7 ||
-                move.ToRow < 0 || move.ToRow > 7 ||
-                move.ToCol < 0 || move.ToCol > 7)
+            if (move.FromRow < 0 || move.FromRow > 7 || move.FromCol < 0 || move.FromCol > 7 ||
+                move.ToRow < 0 || move.ToRow > 7 || move.ToCol < 0 || move.ToCol > 7)
                 return false;
 
             var from = game.Board[move.FromRow][move.FromCol];
             var to = game.Board[move.ToRow][move.ToCol];
 
-            if (from.PieceColor != playerColor)
-                return false;
-
-            if (to.PieceColor != "None")
+            if (from.PieceColor != playerColor || to.PieceColor != "None")
                 return false;
 
             int rowDiff = move.ToRow - move.FromRow;
@@ -132,11 +128,8 @@ namespace CheckersServer
             if (colDiff != 1)
                 return false;
 
-            if (playerColor == "White" && rowDiff != -1 && !from.IsKing)
-                return false;
-
-            if (playerColor == "Black" && rowDiff != 1 && !from.IsKing)
-                return false;
+            if (playerColor == "White" && rowDiff != -1 && !from.IsKing) return false;
+            if (playerColor == "Black" && rowDiff != 1 && !from.IsKing) return false;
 
             return true;
         }
@@ -152,26 +145,14 @@ namespace CheckersServer
             from.PieceColor = "None";
             from.IsKing = false;
 
-            if (playerColor == "White" && move.ToRow == 0)
-                to.IsKing = true;
-            if (playerColor == "Black" && move.ToRow == 7)
-                to.IsKing = true;
+            if (playerColor == "White" && move.ToRow == 0) to.IsKing = true;
+            if (playerColor == "Black" && move.ToRow == 7) to.IsKing = true;
         }
 
         private bool IsNoPiecesForOpponent(GameState game, string currentPlayerColor)
         {
             var opponent = currentPlayerColor == "White" ? "Black" : "White";
-
-            foreach (var row in game.Board)
-            {
-                foreach (var cell in row)
-                {
-                    if (cell.PieceColor == opponent)
-                        return false;
-                }
-            }
-
-            return true;
+            return !game.Board.SelectMany(row => row).Any(cell => cell.PieceColor == opponent);
         }
     }
 }

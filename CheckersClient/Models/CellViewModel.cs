@@ -1,16 +1,15 @@
-﻿using CheckersModels.Models;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Media;
 
 namespace CheckersClient.Models
 {
     public class CellViewModel : INotifyPropertyChanged
     {
+        private readonly int _row, _col;
         private string _pieceColor = "None";
         private bool _isKing;
-        private bool _isSelected;
-        private readonly int _row, _col;
 
         public CellViewModel(int row, int col)
         {
@@ -29,7 +28,7 @@ namespace CheckersClient.Models
                 _pieceColor = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PieceWpfColor));
-                OnPropertyChanged(nameof(Background));
+                OnPropertyChanged(nameof(PieceVisibility));
             }
         }
 
@@ -39,22 +38,23 @@ namespace CheckersClient.Models
             set { _isKing = value; OnPropertyChanged(); }
         }
 
-        public bool IsSelected
-        {
-            get => _isSelected;
-            set { _isSelected = value; OnPropertyChanged(); OnPropertyChanged(nameof(Background)); }
-        }
-
+        // Шахматная доска
         public Brush Background => (Row + Col) % 2 == 0
-            ? IsSelected ? Brushes.LightYellow : Brushes.Brown
-            : IsSelected ? Brushes.LightYellow : Brushes.Beige;
+            ? Brushes.SaddleBrown   // Тёмная клетка
+            : Brushes.Ivory;        // Светлая клетка
 
+        // Цвет шашки
         public Brush PieceWpfColor => PieceColor switch
         {
-            "White" => Brushes.White,
-            "Black" => Brushes.Black,
+            "White" => Brushes.WhiteSmoke,
+            "Black" => Brushes.DimGray,
             _ => Brushes.Transparent
         };
+
+        // Видимость шашки
+        public Visibility PieceVisibility => PieceColor == "None"
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
