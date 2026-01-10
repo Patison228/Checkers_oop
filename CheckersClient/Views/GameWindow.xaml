@@ -38,14 +38,19 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <!-- Одна клетка -->
-                                    <Button Padding="0" 
-                                            Background="{Binding Background}"
+                                    <Button Padding="0" Background="{Binding Background}"
                                             Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.CellClicked}"
                                             CommandParameter="{Binding}">
-                                        
-                                        <Ellipse Width="45" Height="45" Stroke="Black" StrokeThickness="1.5"
-                                                 Fill="{Binding PieceWpfColor}"
-                                                 Visibility="{Binding PieceVisibility}"/>
+                                        <Grid>
+                                            <Ellipse Width="45" Height="45" Stroke="Black" StrokeThickness="1.5"
+                                                     Fill="{Binding PieceWpfColor}"
+                                                     Visibility="{Binding PieceVisibility}"/>
+
+                                            <!-- Красная точка дамки -->
+                                            <Ellipse Width="12" Height="12" Fill="Crimson" Stroke="DarkRed" StrokeThickness="1"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Visibility="{Binding KingIndicatorVisibility}"/>
+                                        </Grid>
                                     </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

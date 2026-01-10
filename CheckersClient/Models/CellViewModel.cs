@@ -38,7 +38,13 @@ namespace CheckersClient.Models
         public bool IsKing
         {
             get => _isKing;
-            set { _isKing = value; OnPropertyChanged(); }
+            set
+            {
+                _isKing = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(KingIndicatorVisibility));
+                OnPropertyChanged(nameof(Background));
+            }
         }
 
         public bool IsSelected
@@ -74,8 +80,9 @@ namespace CheckersClient.Models
             _ => Brushes.Transparent
         };
 
-        public Visibility PieceVisibility => PieceColor == "None"
-            ? Visibility.Collapsed : Visibility.Visible;
+        public Visibility PieceVisibility => PieceColor == "None" ? Visibility.Collapsed : Visibility.Visible;
+
+        public Visibility KingIndicatorVisibility => IsKing ? Visibility.Visible : Visibility.Collapsed;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)

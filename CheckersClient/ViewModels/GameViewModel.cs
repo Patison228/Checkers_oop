@@ -36,12 +36,11 @@ namespace CheckersClient.ViewModels
         public GameViewModel(SignalRService signalRService, GameState initialState)
         {
             _signalRService = signalRService;
-            _gameState = initialState;
             _signalRService.StateUpdated += OnStateUpdated;
             _signalRService.GameOver += OnGameOver;
             _signalRService.MoveRejected += OnMoveRejected;
 
-            UpdateBoard(_gameState);
+            UpdateBoard(initialState);
             CellClicked = new RelayCommand(OnCellClicked);
         }
 
@@ -49,36 +48,41 @@ namespace CheckersClient.ViewModels
         {
             if (parameter is not CellViewModel cell) return;
 
-            // Если ничего не выбрано — выделяем шашку
             if (_selectedCell == null)
             {
+                // 1-й клик: выбор шашки
                 if (cell.PieceColor == _gameState.CurrentPlayer)
                 {
                     SelectPiece(cell);
                 }
-                return;
-            }
-
-            // Если выбрана шашка — делаем ход
-            if (IsValidMove(_selectedCell, cell))
-            {
-                MakeMove(_selectedCell, cell);
             }
             else
             {
-                ClearSelection();
-                Status = "Недопустимый ход. Выберите шашку.";
+                // 2-й клик: ход или сброс
+                if (cell == _selectedCell)
+                {
+                    ClearSelection();
+                    Status = "Выбор отменён";
+                }
+                else if (IsValidMove(_selectedCell, cell))
+                {
+                    MakeMove(_selectedCell, cell);
+                }
+                else
+                {
+                    ClearSelection();
+                    Status = "Недопустимый ход";
+                }
             }
         }
 
         private void SelectPiece(CellViewModel cell)
         {
-            ClearSelection(); // Снимаем предыдущую
+            ClearSelection();
             _selectedCell = cell;
             cell.IsSelected = true;
-
             HighlightPossibleMoves(cell);
-            Status = "Выберите клетку для хода";
+            Status = "Шашка выбрана. Выберите ход";
         }
 
         private void ClearSelection()
@@ -93,7 +97,7 @@ namespace CheckersClient.ViewModels
 
         private void ClearHighlights()
         {
-            foreach (var row in Board)
+            foreach (var row in Board ?? new())
                 foreach (var cell in row)
                     cell.IsPossibleMove = false;
         }
@@ -103,22 +107,24 @@ namespace CheckersClient.ViewModels
             ClearHighlights();
 
             string playerColor = _gameState.CurrentPlayer;
-            int rowDir = playerColor == "White" ? -1 : 1;
+            int[] rowDeltas = selected.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
+            int[] colDeltas = { -1, 1 };
 
-            // Обычные ходы (1 клетка)
-            CheckMove(selected, rowDir, 1);
-            CheckMove(selected, rowDir, -1);
+            // Обычные ходы
+            foreach (int rowDir in rowDeltas)
+                foreach (int colDir in colDeltas)
+                    CheckMove(selected, rowDir, colDir);
 
-            // Простые взятия (2 клетки, опционально)
-            CheckCapture(selected, rowDir * 2, 2);
-            CheckCapture(selected, rowDir * 2, -2);
+            // Взятия (упрощённо)
+            foreach (int rowDir in rowDeltas)
+                foreach (int colDir in colDeltas)
+                    CheckCapture(selected, rowDir * 2, colDir * 2);
         }
 
         private void CheckMove(CellViewModel from, int rowDelta, int colDelta)
         {
             int toRow = from.Row + rowDelta;
             int toCol = from.Col + colDelta;
-
             if (toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8)
             {
                 var toCell = GetCell(toRow, toCol);
@@ -131,7 +137,6 @@ namespace CheckersClient.ViewModels
         {
             int toRow = from.Row + rowDelta;
             int toCol = from.Col + colDelta;
-
             if (toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8)
             {
                 var toCell = GetCell(toRow, toCol);
@@ -140,7 +145,6 @@ namespace CheckersClient.ViewModels
                     int midRow = (from.Row + toRow) / 2;
                     int midCol = (from.Col + toCol) / 2;
                     var midCell = GetCell(midRow, midCol);
-
                     string opponent = _gameState.CurrentPlayer == "White" ? "Black" : "White";
                     if (midCell.PieceColor == opponent)
                         toCell.IsPossibleMove = true;
@@ -148,10 +152,7 @@ namespace CheckersClient.ViewModels
             }
         }
 
-        private CellViewModel GetCell(int row, int col)
-        {
-            return Board[row][col];
-        }
+        private CellViewModel GetCell(int row, int col) => Board[row][col];
 
         private bool IsValidMove(CellViewModel from, CellViewModel to)
         {
@@ -161,8 +162,9 @@ namespace CheckersClient.ViewModels
             // Обычный ход
             if (rowDiff == 1 && colDiff == 1)
             {
-                int expectedRowDir = _gameState.CurrentPlayer == "White" ? -1 : 1;
-                return (to.Row - from.Row) == expectedRowDir || from.IsKing;
+                if (from.IsKing) return true;
+                int expectedDir = _gameState.CurrentPlayer == "White" ? -1 : 1;
+                return (to.Row - from.Row) == expectedDir;
             }
 
             // Взятие
@@ -171,7 +173,6 @@ namespace CheckersClient.ViewModels
                 int midRow = (from.Row + to.Row) / 2;
                 int midCol = (from.Col + to.Col) / 2;
                 var midCell = GetCell(midRow, midCol);
-
                 string opponent = _gameState.CurrentPlayer == "White" ? "Black" : "White";
                 return midCell.PieceColor == opponent;
             }
@@ -179,7 +180,7 @@ namespace CheckersClient.ViewModels
             return false;
         }
 
-        private async void MakeMove(CellViewModel from, CellViewModel to)
+        private void MakeMove(CellViewModel from, CellViewModel to)
         {
             Status = "Отправляю ход...";
             ClearSelection();
@@ -193,14 +194,7 @@ namespace CheckersClient.ViewModels
                 ToCol = to.Col
             };
 
-            try
-            {
-                await _signalRService.SendMakeMove(move);
-            }
-            catch (Exception ex)
-            {
-                Status = $"Ошибка: {ex.Message}";
-            }
+            _signalRService.SendMakeMove(move);
         }
 
         private void UpdateBoard(GameState state)
@@ -215,55 +209,31 @@ namespace CheckersClient.ViewModels
                 for (int c = 0; c < 8; c++)
                 {
                     var cellData = state.Board[r][c];
-                    var viewModel = new CellViewModel(r, c)
+                    row.Add(new CellViewModel(r, c)
                     {
                         PieceColor = cellData.PieceColor,
-                        IsKing = cellData.IsKing,
-                        IsSelected = false,     // Сброс выделения
-                        IsPossibleMove = false  // Сброс подсветки
-                    };
-                    row.Add(viewModel);
+                        IsKing = cellData.IsKing
+                    });
                 }
                 Board.Add(row);
             }
 
             OnPropertyChanged(nameof(Board));
             OnPropertyChanged(nameof(CurrentPlayer));
-
-            Status = state.IsGameOver
-                ? $"Победа {state.Winner}! 🎉"
-                : $"Ход: {_currentPlayer}. Выберите шашку.";
+            Status = state.IsGameOver ? $"Победа {state.Winner}!" : "Выберите свою шашку";
         }
 
-        private void OnStateUpdated(GameState state)
-        {
-            _gameState = state;
-            UpdateBoard(state);
-            ClearSelection(); 
-        }
-
+        private void OnStateUpdated(GameState state) => UpdateBoard(state);
         private void OnGameOver(string winner) => Status = $"Игра окончена! Победил {winner}";
         private void OnMoveRejected(string message) => Status = $"Недопустимый ход: {message}";
+    }
 
-        public class RelayCommand : ICommand
-        {
-            private readonly Action<object?> _execute;
-            private readonly Func<object?, bool>? _canExecute;
-
-            public RelayCommand(Action<object?> execute, Func<object?, bool>? canExecute = null)
-            {
-                _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-                _canExecute = canExecute;
-            }
-
-            public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
-            public void Execute(object? parameter) => _execute(parameter);
-
-            public event EventHandler? CanExecuteChanged
-            {
-                add => CommandManager.RequerySuggested += value;
-                remove => CommandManager.RequerySuggested -= value;
-            }
-        }
+    public class RelayCommand : ICommand
+    {
+        private readonly Action<object?> _execute;
+        public RelayCommand(Action<object?> execute) => _execute = execute;
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => _execute(parameter);
+        public event EventHandler? CanExecuteChanged;
     }
 }

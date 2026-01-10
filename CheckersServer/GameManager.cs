@@ -20,7 +20,7 @@ namespace CheckersServer
                 Player1ConnectionId = connectionId,
                 IsGameStarted = false,
                 IsGameOver = false,
-                CurrentPlayer = "White", // Белые ходят первыми
+                CurrentPlayer = "White", 
                 Board = CreateInitialBoard()
             };
 
@@ -65,6 +65,7 @@ namespace CheckersServer
                 return false;
 
             ApplyMove(game, move, playerColor);
+
             game.CurrentPlayer = game.CurrentPlayer == "White" ? "Black" : "White";
 
             if (IsNoPiecesForOpponent(game, playerColor))
@@ -112,6 +113,7 @@ namespace CheckersServer
 
         private bool IsMoveValid(GameState game, MoveRequest move, string playerColor)
         {
+            // Границы доски
             if (move.FromRow < 0 || move.FromRow > 7 || move.FromCol < 0 || move.FromCol > 7 ||
                 move.ToRow < 0 || move.ToRow > 7 || move.ToCol < 0 || move.ToCol > 7)
                 return false;
@@ -125,27 +127,22 @@ namespace CheckersServer
             int rowDiff = Math.Abs(move.ToRow - move.FromRow);
             int colDiff = Math.Abs(move.ToCol - move.FromCol);
 
-            // Обычный ход (1 клетка)
             if (rowDiff == 1 && colDiff == 1)
             {
-                int rowDir = playerColor == "White" ? -1 : 1;
-                if ((move.ToRow - move.FromRow) != rowDir && !from.IsKing)
-                    return false;
-                return true;
+                if (from.IsKing) return true; 
+
+                int dir = playerColor == "White" ? -1 : 1;
+                return (move.ToRow - move.FromRow) == dir;
             }
 
-            // Взятие (2 клетки, через вражескую шашку)
             if (rowDiff == 2 && colDiff == 2)
             {
-                // Проверяем вражескую шашку ПОСРЕДИНУ
                 int midRow = (move.FromRow + move.ToRow) / 2;
                 int midCol = (move.FromCol + move.ToCol) / 2;
                 var midCell = game.Board[midRow][midCol];
 
                 string opponent = playerColor == "White" ? "Black" : "White";
-                if (midCell.PieceColor != opponent) return false;
-
-                return true;
+                return midCell.PieceColor == opponent;
             }
 
             return false;
@@ -162,24 +159,26 @@ namespace CheckersServer
             from.PieceColor = "None";
             from.IsKing = false;
 
-            // Удаляем взятую шашку (если взятие)
+            if (playerColor == "White" && move.ToRow == 0)
+                to.IsKing = true;
+            else if (playerColor == "Black" && move.ToRow == 7)
+                to.IsKing = true;
+
             int rowDiff = Math.Abs(move.ToRow - move.FromRow);
             if (rowDiff == 2)
             {
                 int midRow = (move.FromRow + move.ToRow) / 2;
                 int midCol = (move.FromCol + move.ToCol) / 2;
-                game.Board[midRow][midCol].PieceColor = "None";
+                var midCell = game.Board[midRow][midCol];
+                midCell.PieceColor = "None";
+                midCell.IsKing = false; 
             }
-
-            // Дамка
-            if (playerColor == "White" && move.ToRow == 0) to.IsKing = true;
-            if (playerColor == "Black" && move.ToRow == 7) to.IsKing = true;
         }
 
         private bool IsNoPiecesForOpponent(GameState game, string currentPlayerColor)
         {
             var opponent = currentPlayerColor == "White" ? "Black" : "White";
-            return !game.Board.SelectMany(row => row).Any(cell => cell.PieceColor == opponent);
+            return !game.Board.SelectMany(row => row).Any(c => c.PieceColor == opponent);
         }
     }
 }
