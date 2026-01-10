@@ -1,7 +1,7 @@
 ﻿<Window x:Class="CheckersClient.Views.GameWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Шашки" Height="600" Width="700">
+        Title="Шашки" Height="650" Width="700">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -15,26 +15,41 @@
             <TextBlock Text="{Binding Status}" FontSize="18" Margin="20,0"/>
         </StackPanel>
 
-        <!-- Доска 8x8 -->
-        <UniformGrid Grid.Row="1" Rows="8" Columns="8" Margin="20">
-            <ItemsControl ItemsSource="{Binding Board}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Padding="0"
-                                Background="{Binding Background}"
-                                Command="{Binding DataContext.CellClicked, RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding}">
-                            
-                            <Ellipse Width="45" Height="45" Stroke="Black" StrokeThickness="2"
-                                     Fill="{Binding PieceBrush}"/>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </UniformGrid>
+        <!-- Доска 8x8 для 2D Board -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Board}" Margin="20">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical"/>
+                    <!-- Строки -->
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <!-- Шаблон для ObservableCollection<CellViewModel> -->
+                    <ItemsControl ItemsSource="{Binding}">
+                        <!-- Клетки строки -->
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" Columns="8"/>
+                                <!-- 1 строка = 8 клеток -->
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Padding="0" Background="{Binding CellBrush}"
+                        Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=DataContext.CellClicked}"
+                        CommandParameter="{Binding}">
+                                    <Ellipse Width="45" Height="45" Stroke="Black" StrokeThickness="2"
+                           Fill="{Binding PieceBrush}"/>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
 
-        <!-- Инструкция -->
-        <TextBlock Grid.Row="2" Text="Кликните на свою шашку для хода" 
+        <TextBlock Grid.Row="2" Text="{Binding Status}" 
                HorizontalAlignment="Center" Margin="20" Foreground="Gray"/>
     </Grid>
 </Window>
