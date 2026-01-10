@@ -19,9 +19,8 @@ namespace CheckersClient.ViewModels
             {
                 DataContext = new CreateRoomViewModel(_signalRService)
             };
+
             win.Show();
-            Application.Current.MainWindow?.Close();
-            Application.Current.MainWindow = win;
         }
 
         public void OpenJoinRoom()
@@ -30,9 +29,8 @@ namespace CheckersClient.ViewModels
             {
                 DataContext = new JoinRoomViewModel(_signalRService)
             };
+
             win.Show();
-            Application.Current.MainWindow?.Close();
-            Application.Current.MainWindow = win;
         }
     }
 }

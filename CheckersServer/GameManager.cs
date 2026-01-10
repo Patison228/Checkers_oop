@@ -7,7 +7,6 @@ namespace CheckersServer
 {
     public class GameManager
     {
-        // RoomId -> GameState
         private readonly ConcurrentDictionary<string, GameState> _games = new();
 
         public GameState CreateRoom(string connectionId)
@@ -34,7 +33,7 @@ namespace CheckersServer
                 return null;
 
             if (!string.IsNullOrEmpty(game.Player2ConnectionId))
-                return null; // уже занято
+                return null; 
 
             game.Player2ConnectionId = connectionId;
             game.IsGameStarted = true;
@@ -54,23 +53,19 @@ namespace CheckersServer
             if (!_games.TryGetValue(move.RoomId, out var game))
                 return false;
 
-            // Проверка чей ход
             var playerColor = game.Player1ConnectionId == connectionId ? "White" :
                               game.Player2ConnectionId == connectionId ? "Black" : null;
 
             if (playerColor == null || playerColor != game.CurrentPlayer || !game.IsGameStarted || game.IsGameOver)
                 return false;
 
-            // Минимальная валидация хода (пример, без всех правил шашек)
             if (!IsMoveValid(game, move, playerColor))
                 return false;
 
             ApplyMove(game, move, playerColor);
 
-            // Смена хода
             game.CurrentPlayer = game.CurrentPlayer == "White" ? "Black" : "White";
 
-            // Простейшая проверка конца игры (нет фигур у соперника)
             if (IsNoPiecesForOpponent(game, playerColor))
             {
                 game.IsGameOver = true;
@@ -98,8 +93,7 @@ namespace CheckersServer
                         IsKing = false
                     };
 
-                    // Стандартная расстановка: белые сверху, черные снизу
-                    if ((row + col) % 2 == 1) // только темные клетки
+                    if ((row + col) % 2 == 1) 
                     {
                         if (row < 3)
                             cell.PieceColor = "Black";
@@ -117,7 +111,6 @@ namespace CheckersServer
 
         private bool IsMoveValid(GameState game, MoveRequest move, string playerColor)
         {
-            // Базовая проверка диапазона
             if (move.FromRow < 0 || move.FromRow > 7 ||
                 move.FromCol < 0 || move.FromCol > 7 ||
                 move.ToRow < 0 || move.ToRow > 7 ||
@@ -136,7 +129,6 @@ namespace CheckersServer
             int rowDiff = move.ToRow - move.FromRow;
             int colDiff = Math.Abs(move.ToCol - move.FromCol);
 
-            // Простое правило: ход на одну диагональ вперед (без взятий и дамок, для минимального варианта)
             if (colDiff != 1)
                 return false;
 
@@ -146,7 +138,6 @@ namespace CheckersServer
             if (playerColor == "Black" && rowDiff != 1 && !from.IsKing)
                 return false;
 
-            // Для простоты здесь нет логики взятий, её можно добавить позже
             return true;
         }
 
@@ -161,7 +152,6 @@ namespace CheckersServer
             from.PieceColor = "None";
             from.IsKing = false;
 
-            // Превращение в дамку
             if (playerColor == "White" && move.ToRow == 0)
                 to.IsKing = true;
             if (playerColor == "Black" && move.ToRow == 7)

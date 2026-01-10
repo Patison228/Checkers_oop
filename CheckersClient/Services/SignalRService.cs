@@ -20,10 +20,15 @@ namespace CheckersClient.Services
                 .Build();
 
             _connection.On<string, GameState>("RoomCreated", (roomId, state) => RoomCreated?.Invoke(roomId, state));
+
             _connection.On<GameState>("GameStarted", state => GameStarted?.Invoke(state));
+
             _connection.On<GameState>("StateUpdated", state => StateUpdated?.Invoke(state));
+
             _connection.On<string>("GameOver", winner => GameOver?.Invoke(winner));
+
             _connection.On<string>("JoinFailed", msg => JoinFailed?.Invoke(msg));
+
             _connection.On<string>("MoveRejected", msg => MoveRejected?.Invoke(msg));
         }
 
