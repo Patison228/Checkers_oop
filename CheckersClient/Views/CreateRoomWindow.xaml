@@ -1,7 +1,7 @@
 ﻿<Window x:Class="CheckersClient.Views.CreateRoomWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Моя комната" Height="250" Width="400">
+        Title="Моя комната" Height="300" Width="400">
     
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20">
         <TextBlock Text="{Binding Status}" FontSize="16" TextWrapping="Wrap" Margin="0,20"/>
