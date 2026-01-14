@@ -1,7 +1,7 @@
 ﻿<Window x:Class="CheckersClient.Views.GameWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Шашки онлайн" Height="700" Width="750" WindowStartupLocation="CenterScreen">
+        Title="Шашки онлайн" Height="750" Width="750" WindowStartupLocation="CenterScreen">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -13,6 +13,7 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="30" HorizontalAlignment="Center">
             <TextBlock Text="{Binding CurrentPlayer}" FontSize="28" FontWeight="Bold" 
                  Foreground="DarkBlue" VerticalAlignment="Center"/>
+            
             <TextBlock Text="{Binding Status}" FontSize="20" Margin="30,0" 
                  VerticalAlignment="Center"/>
         </StackPanel>
@@ -62,7 +63,7 @@
 
         <!-- Инструкция -->
         <TextBlock Grid.Row="2" 
-               Text="👆 Кликните по своей шашке, чтобы сделать ход" 
+               Text="Кликните по своей шашке, чтобы сделать ход" 
                FontSize="16" FontWeight="SemiBold"
                HorizontalAlignment="Center" Margin="30" 
                Foreground="DarkGray"/>

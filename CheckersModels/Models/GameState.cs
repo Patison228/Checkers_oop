@@ -9,10 +9,7 @@ namespace CheckersModels.Models
         public string RoomId { get; set; } = string.Empty;
         public string Player1ConnectionId { get; set; } = string.Empty;
         public string Player2ConnectionId { get; set; } = string.Empty;
-
-        // "White" или "Black"
         public string CurrentPlayer { get; set; } = "White";
-
         public bool IsGameStarted { get; set; }
         public bool IsGameOver { get; set; }
         public string Winner { get; set; } = string.Empty;
