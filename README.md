@@ -17,7 +17,7 @@ A multiplayer online checkers game with a modern WPF interface and real-time com
 # Architecture
 The project uses a client-server architecture:
 
-`Checkers Online
+```Checkers Online
 ├── 📁 CheckersClient (WPF Application)
 │   ├── Views/           - XAML views
 │   ├── ViewModels/     - MVVM view models
@@ -34,14 +34,15 @@ The project uses a client-server architecture:
     ├── Game/           - Shared game models
     ├── Board/          - Board and cell models
     └── Enums/          - Enumerations
-`
+```
 
 # Installation & Running
 1. Clone the repository
 
 ```
 git clone https://github.com/your-username/checkers-online.git
-cd checkers-online```
+cd checkers-online
+```
 
 2. Start the server
 
