@@ -135,7 +135,7 @@ namespace CheckersClient.ViewModels
             var captures = GetPossibleCaptures(cell);
             if (captures.Count > 0)
             {
-                Status = $"Шашка выбрана. Необходимо взять {captures.Count} шашек";
+                Status = $"Шашка выбрана. Можно срубить {captures.Count} вариант(ов)";
             }
             else
             {
@@ -223,41 +223,48 @@ namespace CheckersClient.ViewModels
             }
         }
 
+        /// <summary>
+        /// Возвращает возможные взятия для конкретной шашки.
+        /// ПРАВИЛО РУССКИХ ШАШЕК: простая шашка рубит во все 4 диагональных направления.
+        /// </summary>
         private System.Collections.Generic.List<MoveRequest> GetPossibleCaptures(CellViewModel from)
         {
             var captures = new System.Collections.Generic.List<MoveRequest>();
             string playerColor = _gameState.CurrentPlayer;
             string opponent = playerColor == "White" ? "Black" : "White";
 
-            int[] rowDirs = from.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
-            int[] colDirs = { -1, 1 };
-            int[] colDeltas = { -1, 1 };
-
-            foreach (int rowDir in rowDirs)
+            // Все 4 диагональных направления для рубания
+            // (и простая шашка, и дамка рубят во все стороны)
+            System.Collections.Generic.List<(int rowDir, int colDir)> directions = new()
             {
-                foreach (int colDir in colDeltas)
+                (-1, -1), // вверх-влево
+                (-1, 1),  // вверх-вправо
+                (1, -1),  // вниз-влево
+                (1, 1)    // вниз-вправо
+            };
+
+            foreach (var (rowDir, colDir) in directions)
+            {
+                int jumpRow = from.Row + rowDir * 2;
+                int jumpCol = from.Col + colDir * 2;
+
+                if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
                 {
-                    int jumpRow = from.Row + rowDir * 2;
-                    int jumpCol = from.Col + colDir * 2;
+                    int midRow = from.Row + rowDir;
+                    int midCol = from.Col + colDir;
 
-                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
+                    var midCell = GetCell(midRow, midCol);
+                    var targetCell = GetCell(jumpRow, jumpCol);
+
+                    if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
                     {
-                        int midRow = from.Row + rowDir;
-                        int midCol = from.Col + colDir;
-
-                        var midCell = GetCell(midRow, midCol);
-                        var targetCell = GetCell(jumpRow, jumpCol);
-
-                        if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
+                        captures.Add(new MoveRequest
                         {
-                            captures.Add(new MoveRequest
-                            {
-                                FromRow = from.Row,
-                                FromCol = from.Col,
-                                ToRow = jumpRow,
-                                ToCol = jumpCol
-                            });
-                        }
+                            FromRow = from.Row,
+                            FromCol = from.Col,
+                            ToRow = jumpRow,
+                            ToCol = jumpCol
+                        });
                     }
                 }
             }
@@ -340,11 +347,11 @@ namespace CheckersClient.ViewModels
 
             if (state.IsGameOver)
             {
-                Status = $"🏆 Победа {state.Winner}! 🏆";
+                Status = $"Победа {state.Winner}!";
             }
             else if (state.MustContinueCapture)
             {
-                Status = "⚡ Продолжайте взятие! Выберите следующий ход ⚡";
+                Status = "Продолжайте взятие! Выберите следующий ход";
             }
             else
             {
@@ -354,9 +361,9 @@ namespace CheckersClient.ViewModels
 
         private void OnStateUpdated(GameState state) => UpdateBoard(state);
 
-        private void OnGameOver(string winner) => Status = $"🏆 Игра окончена! Победил {winner} 🏆";
+        private void OnGameOver(string winner) => Status = $"Игра окончена! Победил {winner}";
 
-        private void OnMoveRejected(string message) => Status = $"❌ Недопустимый ход: {message}";
+        private void OnMoveRejected(string message) => Status = $"Недопустимый ход: {message}";
     }
 
     public class RelayCommand : ICommand

@@ -9,7 +9,7 @@ namespace CheckersServer
     /// <summary>
     /// Менеджер состояния всех активных игр на сервере.
     /// Отвечает за создание комнат, подключение игроков и валидацию ходов.
-    /// Реализует правила шашек с обязательным взятием и множественным рубанием.
+    /// Реализует правила русских шашек с обязательным взятием и множественным рубанием.
     /// </summary>
     public class GameManager
     {
@@ -122,7 +122,6 @@ namespace CheckersServer
             }
             else if (!HasAnyMoves(game, game.CurrentPlayer))
             {
-                // Если следующий игрок не может ходить
                 game.IsGameOver = true;
                 game.Winner = playerColor;
             }
@@ -132,7 +131,7 @@ namespace CheckersServer
         }
 
         /// <summary>
-        /// Создаёт начальную доску 8x8.
+        /// Создаёт стандартную начальную доску шашек 8x8.
         /// </summary>
         private List<List<Cell>> CreateInitialBoard()
         {
@@ -195,7 +194,6 @@ namespace CheckersServer
                     if (rowDiff != 2 || colDiff != 2)
                         return false;
 
-                    // Проверяем, что этот ход есть в списке возможных взятий
                     bool isValidCapture = allCaptures.Any(c =>
                         c.FromRow == move.FromRow && c.FromCol == move.FromCol &&
                         c.ToRow == move.ToRow && c.ToCol == move.ToCol);
@@ -207,16 +205,17 @@ namespace CheckersServer
                 }
             }
 
-            // Обычный ход (1 клетка)
+            // Обычный ход (1 клетка по диагонали)
             if (rowDiff == 1 && colDiff == 1)
             {
                 if (from.IsKing) return true;
 
+                // Простая шашка ходит только вперёд
                 int dir = playerColor == "White" ? -1 : 1;
                 return (move.ToRow - move.FromRow) == dir;
             }
 
-            // Взятие (2 клетки)
+            // Взятие (2 клетки по диагонали)
             if (rowDiff == 2 && colDiff == 2)
             {
                 int midRow = (move.FromRow + move.ToRow) / 2;
@@ -225,6 +224,7 @@ namespace CheckersServer
 
                 string opponent = playerColor == "White" ? "Black" : "White";
 
+                // Простая шашка рубит во все стороны (русские шашки)
                 return midCell.PieceColor == opponent;
             }
 
@@ -232,7 +232,7 @@ namespace CheckersServer
         }
 
         /// <summary>
-        /// Применяет ход к доске.
+        /// Применяет допустимый ход к состоянию игры.
         /// </summary>
         private void ApplyMove(GameState game, MoveRequest move, string playerColor)
         {
@@ -265,6 +265,8 @@ namespace CheckersServer
 
         /// <summary>
         /// Возвращает все возможные взятия для указанной шашки.
+        /// ПРАВИЛО РУССКИХ ШАШЕК: простая шашка рубит вперёд И назад (во все 4 диагональных направления).
+        /// Обычные ходы - только вперёд, но рубание - во все стороны!
         /// </summary>
         private List<MoveRequest> GetPossibleCaptures(GameState game, int row, int col, string playerColor)
         {
@@ -274,76 +276,41 @@ namespace CheckersServer
             if (cell.PieceColor != playerColor)
                 return captures;
 
-            int[] rowDirs = cell.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
-            int[] colDirs = { -1, 1 };
-
             string opponent = playerColor == "White" ? "Black" : "White";
 
-            foreach (int rowDir in rowDirs)
+            // Все 4 диагональных направления для рубания
+            // (и простая шашка, и дамка рубят во все стороны)
+            List<(int rowDir, int colDir)> directions = new()
             {
-                foreach (int colDir in colDirs)
-                {
-                    int jumpRow = row + rowDir * 2;
-                    int jumpCol = col + colDir * 2;
+                (-1, -1), // вверх-влево
+                (-1, 1),  // вверх-вправо
+                (1, -1),  // вниз-влево
+                (1, 1)    // вниз-вправо
+            };
 
-                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
-                    {
-                        int midRow = row + rowDir;
-                        int midCol = col + colDir;
-
-                        var midCell = game.Board[midRow][midCol];
-                        var targetCell = game.Board[jumpRow][jumpCol];
-
-                        if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
-                        {
-                            captures.Add(new MoveRequest
-                            {
-                                RoomId = game.RoomId,
-                                FromRow = row,
-                                FromCol = col,
-                                ToRow = jumpRow,
-                                ToCol = jumpCol
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Для дамок также проверяем ходы назад
-            if (cell.IsKing)
+            foreach (var (rowDir, colDir) in directions)
             {
-                foreach (int colDir in colDirs)
+                int jumpRow = row + rowDir * 2;
+                int jumpCol = col + colDir * 2;
+
+                if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
                 {
-                    int backRowDir = playerColor == "White" ? 1 : -1;
-                    int jumpRow = row + backRowDir * 2;
-                    int jumpCol = col + colDir * 2;
+                    int midRow = row + rowDir;
+                    int midCol = col + colDir;
 
-                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
+                    var midCell = game.Board[midRow][midCol];
+                    var targetCell = game.Board[jumpRow][jumpCol];
+
+                    if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
                     {
-                        int midRow = row + backRowDir;
-                        int midCol = col + colDir;
-
-                        var midCell = game.Board[midRow][midCol];
-                        var targetCell = game.Board[jumpRow][jumpCol];
-
-                        if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
+                        captures.Add(new MoveRequest
                         {
-                            bool alreadyAdded = captures.Any(c =>
-                                c.FromRow == row && c.FromCol == col &&
-                                c.ToRow == jumpRow && c.ToCol == jumpCol);
-
-                            if (!alreadyAdded)
-                            {
-                                captures.Add(new MoveRequest
-                                {
-                                    RoomId = game.RoomId,
-                                    FromRow = row,
-                                    FromCol = col,
-                                    ToRow = jumpRow,
-                                    ToCol = jumpCol
-                                });
-                            }
-                        }
+                            RoomId = game.RoomId,
+                            FromRow = row,
+                            FromCol = col,
+                            ToRow = jumpRow,
+                            ToCol = jumpCol
+                        });
                     }
                 }
             }
@@ -387,12 +354,10 @@ namespace CheckersServer
         /// </summary>
         private bool HasAnyMoves(GameState game, string playerColor)
         {
-            // Проверяем наличие взятий
             var captures = GetAllPossibleCaptures(game, playerColor);
             if (captures.Count > 0)
                 return true;
 
-            // Проверяем наличие обычных ходов
             for (int row = 0; row < 8; row++)
             {
                 for (int col = 0; col < 8; col++)
