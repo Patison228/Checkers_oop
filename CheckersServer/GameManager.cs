@@ -4,31 +4,20 @@ using System.Collections.Generic;
 using System.Linq;
 using CheckersModels.Models;
 
-/// <summary>
-/// Менеджер состояния всех активных игр на сервере.
-/// Отвечает за создание комнат, подключение игроков и валидацию ходов.
-/// Использует потокобезопасную коллекцию для многопользовательской работы.
-/// </summary>
 namespace CheckersServer
 {
     /// <summary>
-    /// Основной класс управления партиями шашек.
-    /// Хранит активные комнаты в памяти и реализует правила игры.
+    /// Менеджер состояния всех активных игр на сервере.
+    /// Отвечает за создание комнат, подключение игроков и валидацию ходов.
+    /// Реализует правила шашек с обязательным взятием и множественным рубанием.
     /// </summary>
     public class GameManager
     {
-        /// <summary>
-        /// Потокобезопасная коллекция активных комнат по их идентификаторам.
-        /// Ключ — RoomId, значение — полное состояние игры.
-        /// </summary>
         private readonly ConcurrentDictionary<string, GameState> _games = new();
 
         /// <summary>
-        /// Создаёт новую комнату для одного игрока и возвращает её состояние.
-        /// Генерирует уникальный 8-символьный идентификатор комнаты.
+        /// Создаёт новую комнату для одного игрока.
         /// </summary>
-        /// <param name="connectionId">Идентификатор SignalR-соединения создателя комнаты.</param>
-        /// <returns>Новое состояние игры с пустой доской и ожиданием второго игрока.</returns>
         public GameState CreateRoom(string connectionId)
         {
             var roomId = Guid.NewGuid().ToString("N")[..8].ToUpper();
@@ -40,7 +29,10 @@ namespace CheckersServer
                 IsGameStarted = false,
                 IsGameOver = false,
                 CurrentPlayer = "White",
-                Board = CreateInitialBoard()
+                Board = CreateInitialBoard(),
+                MustContinueCapture = false,
+                ContinueCaptureFromRow = -1,
+                ContinueCaptureFromCol = -1
             };
 
             _games[roomId] = game;
@@ -48,11 +40,8 @@ namespace CheckersServer
         }
 
         /// <summary>
-        /// Подключает второго игрока к существующей комнате и запускает игру.
+        /// Подключает второго игрока к комнате.
         /// </summary>
-        /// <param name="roomId">Идентификатор комнаты для подключения.</param>
-        /// <param name="connectionId">Идентификатор SignalR-соединения присоединяющегося игрока.</param>
-        /// <returns>Обновлённое состояние игры, если подключение успешно, иначе null.</returns>
         public GameState? JoinRoom(string roomId, string connectionId)
         {
             if (!_games.TryGetValue(roomId, out var game))
@@ -67,25 +56,15 @@ namespace CheckersServer
             return game;
         }
 
-        /// <summary>
-        /// Возвращает текущее состояние игры по идентификатору комнаты.
-        /// </summary>
-        /// <param name="roomId">Идентификатор комнаты.</param>
-        /// <returns>Состояние игры или null, если комната не найдена.</returns>
         public GameState? GetGame(string roomId)
         {
             _games.TryGetValue(roomId, out var game);
-
             return game;
         }
 
         /// <summary>
-        /// Проверяет допустимость хода и применяет его к состоянию игры, если ход корректен.
+        /// Проверяет и применяет ход с учётом обязательности взятия и множественного рубания.
         /// </summary>
-        /// <param name="connectionId">Идентификатор соединения делающего ход.</param>
-        /// <param name="move">Данные хода: координаты "откуда" и "куда".</param>
-        /// <param name="updated">Обновлённое состояние игры при успехе.</param>
-        /// <returns>true, если ход применён успешно.</returns>
         public bool TryApplyMove(string connectionId, MoveRequest move, out GameState? updated)
         {
             updated = null;
@@ -100,28 +79,60 @@ namespace CheckersServer
                 !game.IsGameStarted || game.IsGameOver)
                 return false;
 
+            // Если продолжается серия взятий, можно ходить только выбранной шашкой
+            if (game.MustContinueCapture)
+            {
+                if (move.FromRow != game.ContinueCaptureFromRow || move.FromCol != game.ContinueCaptureFromCol)
+                    return false;
+            }
+
             if (!IsMoveValid(game, move, playerColor))
                 return false;
 
+            bool isCapture = Math.Abs(move.ToRow - move.FromRow) == 2;
+
             ApplyMove(game, move, playerColor);
 
+            // Проверяем, может ли эта шашка продолжить взятие
+            if (isCapture)
+            {
+                var furtherCaptures = GetPossibleCaptures(game, move.ToRow, move.ToCol, playerColor);
+                if (furtherCaptures.Count > 0)
+                {
+                    // Продолжаем серию взятий
+                    game.MustContinueCapture = true;
+                    game.ContinueCaptureFromRow = move.ToRow;
+                    game.ContinueCaptureFromCol = move.ToCol;
+                    updated = game;
+                    return true;
+                }
+            }
+
+            // Серия взятий завершена или это был обычный ход - передаём ход
+            game.MustContinueCapture = false;
+            game.ContinueCaptureFromRow = -1;
+            game.ContinueCaptureFromCol = -1;
             game.CurrentPlayer = game.CurrentPlayer == "White" ? "Black" : "White";
 
+            // Проверка окончания игры
             if (IsNoPiecesForOpponent(game, playerColor))
             {
                 game.IsGameOver = true;
                 game.Winner = playerColor;
             }
+            else if (!HasAnyMoves(game, game.CurrentPlayer))
+            {
+                // Если следующий игрок не может ходить
+                game.IsGameOver = true;
+                game.Winner = playerColor;
+            }
 
             updated = game;
-
             return true;
         }
 
         /// <summary>
-        /// Создаёт стандартную начальную доску шашек 8x8.
-        /// Шашки размещаются только на тёмных клетках: чёрные сверху (строки 0-2),
-        /// белые снизу (строки 5-7). Верхний левый угол — тёмная клетка.
+        /// Создаёт начальную доску 8x8.
         /// </summary>
         private List<List<Cell>> CreateInitialBoard()
         {
@@ -140,13 +151,12 @@ namespace CheckersServer
                         IsKing = false
                     };
 
-                    // Тёмные клетки для шашек
                     if ((row + col) % 2 == 0)
                     {
                         if (row <= 2)
-                            cell.PieceColor = "Black";  // Чёрные сверху
+                            cell.PieceColor = "Black";
                         else if (row >= 5)
-                            cell.PieceColor = "White";  // Белые снизу
+                            cell.PieceColor = "White";
                     }
 
                     rowList.Add(cell);
@@ -158,8 +168,7 @@ namespace CheckersServer
         }
 
         /// <summary>
-        /// Проверяет допустимость хода согласно правилам шашек.
-        /// Поддерживает обычные ходы и взятия для простых и дамских шашек.
+        /// Проверяет допустимость хода с учётом обязательности взятия.
         /// </summary>
         private bool IsMoveValid(GameState game, MoveRequest move, string playerColor)
         {
@@ -176,17 +185,38 @@ namespace CheckersServer
             int rowDiff = Math.Abs(move.ToRow - move.FromRow);
             int colDiff = Math.Abs(move.ToCol - move.FromCol);
 
-            // Обычный ход (1 клетка по диагонали)
+            // Проверка на обязательное взятие (если не продолжается серия)
+            if (!game.MustContinueCapture)
+            {
+                var allCaptures = GetAllPossibleCaptures(game, playerColor);
+                if (allCaptures.Count > 0)
+                {
+                    // Есть возможность взятия - разрешены только ходы со взятием
+                    if (rowDiff != 2 || colDiff != 2)
+                        return false;
+
+                    // Проверяем, что этот ход есть в списке возможных взятий
+                    bool isValidCapture = allCaptures.Any(c =>
+                        c.FromRow == move.FromRow && c.FromCol == move.FromCol &&
+                        c.ToRow == move.ToRow && c.ToCol == move.ToCol);
+
+                    if (!isValidCapture)
+                        return false;
+
+                    return true;
+                }
+            }
+
+            // Обычный ход (1 клетка)
             if (rowDiff == 1 && colDiff == 1)
             {
-                if (from.IsKing) return true; // Дамка ходит во все стороны
+                if (from.IsKing) return true;
 
-                // Простая шашка только вперёд
                 int dir = playerColor == "White" ? -1 : 1;
                 return (move.ToRow - move.FromRow) == dir;
             }
 
-            // Взятие (2 клетки через противника)
+            // Взятие (2 клетки)
             if (rowDiff == 2 && colDiff == 2)
             {
                 int midRow = (move.FromRow + move.ToRow) / 2;
@@ -202,32 +232,27 @@ namespace CheckersServer
         }
 
         /// <summary>
-        /// Применяет допустимый ход к состоянию игры.
-        /// Перемещает шашку, создаёт дамку при достижении края доски,
-        /// удаляет взятую фигуру при нужде.
+        /// Применяет ход к доске.
         /// </summary>
         private void ApplyMove(GameState game, MoveRequest move, string playerColor)
         {
             var from = game.Board[move.FromRow][move.FromCol];
             var to = game.Board[move.ToRow][move.ToCol];
 
-            // Перемещаем шашку
             to.PieceColor = from.PieceColor;
             to.IsKing = from.IsKing;
 
-            // Очищаем исходную клетку
             from.PieceColor = "None";
             from.IsKing = false;
 
-            // Проверяем создание дамки
+            // Превращение в дамку
             if (playerColor == "White" && move.ToRow == 0)
                 to.IsKing = true;
             else if (playerColor == "Black" && move.ToRow == 7)
                 to.IsKing = true;
 
-            // Удаляем взятую шашку
+            // Удаление взятой шашки
             int rowDiff = Math.Abs(move.ToRow - move.FromRow);
-
             if (rowDiff == 2)
             {
                 int midRow = (move.FromRow + move.ToRow) / 2;
@@ -239,13 +264,164 @@ namespace CheckersServer
         }
 
         /// <summary>
-        /// Проверяет, остались ли у противника фигуры на доске.
+        /// Возвращает все возможные взятия для указанной шашки.
+        /// </summary>
+        private List<MoveRequest> GetPossibleCaptures(GameState game, int row, int col, string playerColor)
+        {
+            var captures = new List<MoveRequest>();
+            var cell = game.Board[row][col];
+
+            if (cell.PieceColor != playerColor)
+                return captures;
+
+            int[] rowDirs = cell.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
+            int[] colDirs = { -1, 1 };
+
+            string opponent = playerColor == "White" ? "Black" : "White";
+
+            foreach (int rowDir in rowDirs)
+            {
+                foreach (int colDir in colDirs)
+                {
+                    int jumpRow = row + rowDir * 2;
+                    int jumpCol = col + colDir * 2;
+
+                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
+                    {
+                        int midRow = row + rowDir;
+                        int midCol = col + colDir;
+
+                        var midCell = game.Board[midRow][midCol];
+                        var targetCell = game.Board[jumpRow][jumpCol];
+
+                        if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
+                        {
+                            captures.Add(new MoveRequest
+                            {
+                                RoomId = game.RoomId,
+                                FromRow = row,
+                                FromCol = col,
+                                ToRow = jumpRow,
+                                ToCol = jumpCol
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Для дамок также проверяем ходы назад
+            if (cell.IsKing)
+            {
+                foreach (int colDir in colDirs)
+                {
+                    int backRowDir = playerColor == "White" ? 1 : -1;
+                    int jumpRow = row + backRowDir * 2;
+                    int jumpCol = col + colDir * 2;
+
+                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
+                    {
+                        int midRow = row + backRowDir;
+                        int midCol = col + colDir;
+
+                        var midCell = game.Board[midRow][midCol];
+                        var targetCell = game.Board[jumpRow][jumpCol];
+
+                        if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
+                        {
+                            bool alreadyAdded = captures.Any(c =>
+                                c.FromRow == row && c.FromCol == col &&
+                                c.ToRow == jumpRow && c.ToCol == jumpCol);
+
+                            if (!alreadyAdded)
+                            {
+                                captures.Add(new MoveRequest
+                                {
+                                    RoomId = game.RoomId,
+                                    FromRow = row,
+                                    FromCol = col,
+                                    ToRow = jumpRow,
+                                    ToCol = jumpCol
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            return captures;
+        }
+
+        /// <summary>
+        /// Возвращает все возможные взятия для игрока.
+        /// </summary>
+        private List<MoveRequest> GetAllPossibleCaptures(GameState game, string playerColor)
+        {
+            var allCaptures = new List<MoveRequest>();
+
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    if (game.Board[row][col].PieceColor == playerColor)
+                    {
+                        var captures = GetPossibleCaptures(game, row, col, playerColor);
+                        allCaptures.AddRange(captures);
+                    }
+                }
+            }
+
+            return allCaptures;
+        }
+
+        /// <summary>
+        /// Проверяет наличие фигур противника.
         /// </summary>
         private bool IsNoPiecesForOpponent(GameState game, string currentPlayerColor)
         {
             var opponent = currentPlayerColor == "White" ? "Black" : "White";
-
             return !game.Board.SelectMany(row => row).Any(cell => cell.PieceColor == opponent);
+        }
+
+        /// <summary>
+        /// Проверяет, есть ли доступные ходы у игрока.
+        /// </summary>
+        private bool HasAnyMoves(GameState game, string playerColor)
+        {
+            // Проверяем наличие взятий
+            var captures = GetAllPossibleCaptures(game, playerColor);
+            if (captures.Count > 0)
+                return true;
+
+            // Проверяем наличие обычных ходов
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    var cell = game.Board[row][col];
+                    if (cell.PieceColor == playerColor)
+                    {
+                        int[] rowDirs = cell.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
+                        int[] colDirs = { -1, 1 };
+
+                        foreach (int rowDir in rowDirs)
+                        {
+                            foreach (int colDir in colDirs)
+                            {
+                                int newRow = row + rowDir;
+                                int newCol = col + colDir;
+
+                                if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8)
+                                {
+                                    if (game.Board[newRow][newCol].PieceColor == "None")
+                                        return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }

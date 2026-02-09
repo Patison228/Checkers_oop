@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
@@ -7,61 +6,26 @@ using System.Windows.Media;
 namespace CheckersClient.Models
 {
     /// <summary>
-    /// ViewModel для одной клетки доски шашек в WPF-клиенте.
-    /// Содержит визуальное состояние клетки (подсветка, выбор, дамка) и уведомляет UI об изменениях.
+    /// ViewModel для одной клетки доски шашек.
     /// </summary>
     public class CellViewModel : INotifyPropertyChanged
     {
-        /// <summary>
-        /// Хранит индекс строки и столбца клетки для быстрого доступа.
-        /// </summary>
         private readonly int _row, _col;
-
         private bool _isKing;
-
-        /// <summary>
-        /// Текущее состояние шашки на клетке. 
-        /// Возможные значения: <c>"None"</c>, <c>"White"</c>, <c>"Black"</c>.
-        /// </summary>
         private string _pieceColor = "None";
-
-        /// <summary>
-        /// Локальное состояние UI: выделена ли клетка игроком.
-        /// </summary>
         private bool _isSelected;
-
-        /// <summary>
-        /// Локальное состояние UI: доступен ли ход на эту клетку.
-        /// </summary>
         private bool _isPossibleMove;
+        private bool _isMandatoryCapture;
 
-        /// <summary>
-        /// Создаёт новую ViewModel для клетки с заданными координатами.
-        /// </summary>
-        /// <param name="row">Индекс строки (0-7).</param>
-        /// <param name="col">Индекс столбца (0-7).</param>
         public CellViewModel(int row, int col)
         {
             _row = row;
             _col = col;
         }
 
-        /// <summary>
-        /// Неизменяемый индекс строки на доске (0-7).
-        /// Строка 0 — верхний край доски (позиция чёрных).
-        /// </summary>
         public int Row => _row;
-
-        /// <summary>
-        /// Неизменяемый индекс столбца на доске (0-7).
-        /// Столбец 0 — левый край доски.
-        /// </summary>
         public int Col => _col;
 
-        /// <summary>
-        /// Цвет шашки на клетке. Автоматически обновляет связанные визуальные свойства.
-        /// Возможные значения: <c>"None"</c>, <c>"White"</c>, <c>"Black"</c>.
-        /// </summary>
         public string PieceColor
         {
             get => _pieceColor;
@@ -72,13 +36,10 @@ namespace CheckersClient.Models
                 OnPropertyChanged(nameof(PieceWpfColor));
                 OnPropertyChanged(nameof(PieceVisibility));
                 OnPropertyChanged(nameof(Background));
+                OnPropertyChanged(nameof(BorderBrush));
             }
         }
 
-        /// <summary>
-        /// Признак дамки. <c>true</c> отображает красную точку в центре шашки.
-        /// Синхронизируется с сервером через <see cref="CheckersModels.Models.Cell.IsKing"/>.
-        /// </summary>
         public bool IsKing
         {
             get => _isKing;
@@ -87,14 +48,9 @@ namespace CheckersClient.Models
                 _isKing = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(KingIndicatorVisibility));
-                OnPropertyChanged(nameof(Background));
             }
         }
 
-        /// <summary>
-        /// Временное состояние UI: выделена ли клетка текущим игроком (жёлтая подсветка).
-        /// Управляется <see cref="CheckersClient.ViewModels.GameViewModel"/>.
-        /// </summary>
         public bool IsSelected
         {
             get => _isSelected;
@@ -103,13 +59,11 @@ namespace CheckersClient.Models
                 _isSelected = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Background));
+                OnPropertyChanged(nameof(BorderBrush));
+                OnPropertyChanged(nameof(BorderThickness));
             }
         }
 
-        /// <summary>
-        /// Временное состояние UI: доступен ли ход на эту клетку (зелёная подсветка).
-        /// Показывает все легальные ходы для выбранной шашки.
-        /// </summary>
         public bool IsPossibleMove
         {
             get => _isPossibleMove;
@@ -118,47 +72,74 @@ namespace CheckersClient.Models
                 _isPossibleMove = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(Background));
+                OnPropertyChanged(nameof(MoveIndicatorVisibility));
             }
         }
 
         /// <summary>
-        /// Фон клетки по приоритету:
-        /// 1. Выделенная (жёлтый),
-        /// 2. Возможный ход (зелёный),
-        /// 3. Шахматная расцветка (тёмно-коричневый/кремовый).
+        /// Обязательное взятие - подсвечивается оранжевым.
         /// </summary>
-        public Brush Background => IsSelected ? Brushes.LightYellow :
-                                  IsPossibleMove ? Brushes.LightGreen :
-                                  (Row + Col) % 2 == 0 ? Brushes.SaddleBrown : Brushes.Ivory;
+        public bool IsMandatoryCapture
+        {
+            get => _isMandatoryCapture;
+            set
+            {
+                _isMandatoryCapture = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Background));
+                OnPropertyChanged(nameof(BorderBrush));
+                OnPropertyChanged(nameof(CaptureIndicatorVisibility));
+            }
+        }
 
         /// <summary>
-        /// Цвет заливки шашки. Прозрачный для пустых клеток.
+        /// Фон клетки с учётом всех состояний.
         /// </summary>
+        public Brush Background
+        {
+            get
+            {
+                if (IsSelected)
+                    return new SolidColorBrush(Color.FromRgb(255, 255, 150)); // Светло-жёлтый
+
+                if (IsMandatoryCapture)
+                    return new SolidColorBrush(Color.FromRgb(255, 200, 100)); // Оранжевый
+
+                if (IsPossibleMove)
+                    return new SolidColorBrush(Color.FromRgb(144, 238, 144)); // Светло-зелёный
+
+                // Шахматная расцветка
+                return (Row + Col) % 2 == 0
+                    ? new SolidColorBrush(Color.FromRgb(139, 69, 19)) // Коричневый
+                    : new SolidColorBrush(Color.FromRgb(245, 222, 179)); // Пшеничный
+            }
+        }
+
+        /// <summary>
+        /// Обводка для выделенной клетки.
+        /// </summary>
+        public Brush BorderBrush => IsSelected || IsMandatoryCapture
+            ? Brushes.Gold
+            : Brushes.Transparent;
+
+        public Thickness BorderThickness => IsSelected || IsMandatoryCapture
+            ? new Thickness(3)
+            : new Thickness(0);
+
         public Brush PieceWpfColor => PieceColor switch
         {
             "White" => Brushes.WhiteSmoke,
-            "Black" => Brushes.DimGray,
+            "Black" => new SolidColorBrush(Color.FromRgb(50, 50, 50)),
             _ => Brushes.Transparent
         };
 
-        /// <summary>
-        /// Видимость шашки. Скрыта (<c>Collapsed</c>) для пустых клеток.
-        /// </summary>
         public Visibility PieceVisibility => PieceColor == "None" ? Visibility.Collapsed : Visibility.Visible;
-
-        /// <summary>
-        /// Видимость красной точки дамки. Показывается только при <see cref="IsKing"/>.
-        /// </summary>
         public Visibility KingIndicatorVisibility => IsKing ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility MoveIndicatorVisibility => IsPossibleMove && !IsMandatoryCapture ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility CaptureIndicatorVisibility => IsMandatoryCapture ? Visibility.Visible : Visibility.Collapsed;
 
-        /// <summary>
-        /// Событие уведомления UI об изменении свойств клетки.
-        /// </summary>
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        /// <summary>
-        /// Вызывает событие <see cref="PropertyChanged"/> для указанного свойства.
-        /// </summary>
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }

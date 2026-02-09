@@ -2,16 +2,14 @@
 using CheckersClient.Services;
 using CheckersModels.Models;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Windows.Input;
+using System;
 
 namespace CheckersClient.ViewModels
 {
     /// <summary>
-    /// ViewModel логики игры в шашки.
-    /// Управляет игровым состоянием, обработкой кликов,
-    /// выделением шашек, возможных ходов и взаимодействием с SignalR-сервисом.
+    /// ViewModel логики игры с множественным взятием и обязательностью рубания.
     /// </summary>
     public class GameViewModel : ViewModelBase
     {
@@ -19,44 +17,25 @@ namespace CheckersClient.ViewModels
         private GameState _gameState;
         private ObservableCollection<ObservableCollection<CellViewModel>> _board;
         private CellViewModel? _selectedCell;
-        private string _status = "Выберите свою шашку";
+        private string _status = "Ожидание подключения игроков...";
         private string _currentPlayer = "";
 
-        /// <summary>
-        /// Текущее состояние игровой доски (8x8 клеток).
-        /// Каждая клетка представлена через <see cref="CellViewModel"/>.
-        /// </summary>
         public ObservableCollection<ObservableCollection<CellViewModel>> Board
         {
             get => _board;
             set { _board = value; OnPropertyChanged(); }
         }
 
-        /// <summary>
-        /// Текстовое сообщение для отображения текущего статуса игры.
-        /// </summary>
         public string Status
         {
             get => _status;
             set { _status = value; OnPropertyChanged(); }
         }
 
-        /// <summary>
-        /// Имя текущего игрока ("White" или "Black").
-        /// </summary>
         public string CurrentPlayer => _currentPlayer;
 
-        /// <summary>
-        /// Команда, вызываемая при клике по клетке доски.
-        /// </summary>
         public ICommand CellClicked { get; }
 
-        /// <summary>
-        /// Конструктор ViewModel игры.
-        /// Подключает SignalR-события и инициализирует игровое состояние.
-        /// </summary>
-        /// <param name="signalRService">Сервис связи с сервером SignalR.</param>
-        /// <param name="initialState">Начальное состояние игры, включая расположение шашек.</param>
         public GameViewModel(SignalRService signalRService, GameState initialState)
         {
             _signalRService = signalRService;
@@ -68,33 +47,75 @@ namespace CheckersClient.ViewModels
             CellClicked = new RelayCommand(OnCellClicked);
         }
 
-        /// <summary>
-        /// Обработка кликов по клеткам доски:
-        /// выбор шашки, начало хода или отмена выделения.
-        /// </summary>
         private void OnCellClicked(object? parameter)
         {
             if (parameter is not CellViewModel cell) return;
 
+            if (_gameState.IsGameOver)
+            {
+                Status = $"Игра окончена! Победил {_gameState.Winner}";
+                return;
+            }
+
+            // Если продолжается серия взятий - можно выбрать только указанную шашку
+            if (_gameState.MustContinueCapture)
+            {
+                if (cell.Row == _gameState.ContinueCaptureFromRow &&
+                    cell.Col == _gameState.ContinueCaptureFromCol)
+                {
+                    if (_selectedCell == cell)
+                    {
+                        ClearSelection();
+                        Status = "Выбор отменён. Продолжите взятие!";
+                    }
+                    else
+                    {
+                        SelectPiece(cell);
+                    }
+                }
+                else if (cell.IsPossibleMove || cell.IsMandatoryCapture)
+                {
+                    // Ход на подсвеченную клетку
+                    if (_selectedCell != null)
+                    {
+                        MakeMove(_selectedCell, cell);
+                    }
+                }
+                else
+                {
+                    Status = "Необходимо продолжить взятие текущей шашкой!";
+                }
+                return;
+            }
+
             if (_selectedCell == null)
             {
-                // Первый клик — выбор своей шашки
+                // Первый клик - выбор шашки
                 if (cell.PieceColor == _gameState.CurrentPlayer)
                 {
                     SelectPiece(cell);
                 }
+                else
+                {
+                    Status = "Выберите свою шашку";
+                }
             }
             else
             {
-                // Второй клик — попытка сделать ход или отменить выбор
+                // Второй клик
                 if (cell == _selectedCell)
                 {
                     ClearSelection();
                     Status = "Выбор отменён";
                 }
-                else if (IsValidMove(_selectedCell, cell))
+                else if (cell.IsPossibleMove || cell.IsMandatoryCapture)
                 {
                     MakeMove(_selectedCell, cell);
+                }
+                else if (cell.PieceColor == _gameState.CurrentPlayer)
+                {
+                    // Выбрана другая своя шашка
+                    SelectPiece(cell);
                 }
                 else
                 {
@@ -104,21 +125,24 @@ namespace CheckersClient.ViewModels
             }
         }
 
-        /// <summary>
-        /// Выделяет выбранную шашку и подсвечивает допустимые ходы.
-        /// </summary>
         private void SelectPiece(CellViewModel cell)
         {
             ClearSelection();
             _selectedCell = cell;
             cell.IsSelected = true;
             HighlightPossibleMoves(cell);
-            Status = "Шашка выбрана. Выберите ход";
+
+            var captures = GetPossibleCaptures(cell);
+            if (captures.Count > 0)
+            {
+                Status = $"Шашка выбрана. Необходимо взять {captures.Count} шашек";
+            }
+            else
+            {
+                Status = "Шашка выбрана. Выберите ход";
+            }
         }
 
-        /// <summary>
-        /// Снимает выделение с текущей выбранной шашки и сбрасывает подсветку.
-        /// </summary>
         private void ClearSelection()
         {
             if (_selectedCell != null)
@@ -129,117 +153,153 @@ namespace CheckersClient.ViewModels
             }
         }
 
-        /// <summary>
-        /// Убирает все подсветки возможных ходов на доске.
-        /// </summary>
         private void ClearHighlights()
         {
             foreach (var row in Board ?? new())
                 foreach (var cell in row)
+                {
                     cell.IsPossibleMove = false;
+                    cell.IsMandatoryCapture = false;
+                }
         }
 
-        /// <summary>
-        /// Подсвечивает клетки, куда выбранная шашка может пойти
-        /// (включая обычные ходы и возможные взятия).
-        /// </summary>
         private void HighlightPossibleMoves(CellViewModel selected)
         {
             ClearHighlights();
 
             string playerColor = _gameState.CurrentPlayer;
-            int[] rowDeltas = selected.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
-            int[] colDeltas = { -1, 1 };
 
-            // Простые ходы
-            foreach (int rowDir in rowDeltas)
-                foreach (int colDir in colDeltas)
-                    CheckMove(selected, rowDir, colDir);
+            // Сначала проверяем взятия
+            var allCaptures = GetAllPossibleCaptures(playerColor);
 
-            // Возможные взятия
-            foreach (int rowDir in rowDeltas)
-                foreach (int colDir in colDeltas)
-                    CheckCapture(selected, rowDir * 2, colDir * 2);
-        }
-
-        /// <summary>
-        /// Проверяет возможность обычного шага (без взятия).
-        /// </summary>
-        private void CheckMove(CellViewModel from, int rowDelta, int colDelta)
-        {
-            int toRow = from.Row + rowDelta;
-            int toCol = from.Col + colDelta;
-            if (toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8)
+            if (_gameState.MustContinueCapture)
             {
-                var toCell = GetCell(toRow, toCol);
-                if (toCell.PieceColor == "None")
-                    toCell.IsPossibleMove = true;
+                // Продолжение серии взятий - показываем только взятия для текущей шашки
+                var captures = GetPossibleCaptures(selected);
+                foreach (var capture in captures)
+                {
+                    var targetCell = GetCell(capture.ToRow, capture.ToCol);
+                    targetCell.IsMandatoryCapture = true;
+                }
+            }
+            else if (allCaptures.Count > 0)
+            {
+                // Есть взятия - показываем только взятия для выбранной шашки
+                var captures = allCaptures.Where(c =>
+                    c.FromRow == selected.Row && c.FromCol == selected.Col).ToList();
+
+                foreach (var capture in captures)
+                {
+                    var targetCell = GetCell(capture.ToRow, capture.ToCol);
+                    targetCell.IsMandatoryCapture = true;
+                }
+            }
+            else
+            {
+                // Обычные ходы
+                HighlightRegularMoves(selected, playerColor);
             }
         }
 
-        /// <summary>
-        /// Проверяет возможность хода с взятием шашки соперника.
-        /// </summary>
-        private void CheckCapture(CellViewModel from, int rowDelta, int colDelta)
+        private void HighlightRegularMoves(CellViewModel selected, string playerColor)
         {
-            int toRow = from.Row + rowDelta;
-            int toCol = from.Col + colDelta;
-            if (toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8)
+            int[] rowDeltas = selected.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
+            int[] colDeltas = { -1, 1 };
+
+            foreach (int rowDir in rowDeltas)
             {
-                var toCell = GetCell(toRow, toCol);
-                if (toCell.PieceColor == "None")
+                foreach (int colDir in colDeltas)
                 {
-                    int midRow = (from.Row + toRow) / 2;
-                    int midCol = (from.Col + toCol) / 2;
-                    var midCell = GetCell(midRow, midCol);
-                    string opponent = _gameState.CurrentPlayer == "White" ? "Black" : "White";
-                    if (midCell.PieceColor == opponent)
-                        toCell.IsPossibleMove = true;
+                    int toRow = selected.Row + rowDir;
+                    int toCol = selected.Col + colDir;
+
+                    if (toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8)
+                    {
+                        var toCell = GetCell(toRow, toCol);
+                        if (toCell.PieceColor == "None")
+                            toCell.IsPossibleMove = true;
+                    }
                 }
             }
         }
 
-        /// <summary>
-        /// Возвращает ячейку по заданным координатам.
-        /// </summary>
-        private CellViewModel GetCell(int row, int col) => Board[row][col];
-
-        /// <summary>
-        /// Проверяет корректность выбранного хода
-        /// (перемещение на одну клетку или взятие шашки противника).
-        /// </summary>
-        private bool IsValidMove(CellViewModel from, CellViewModel to)
+        private System.Collections.Generic.List<MoveRequest> GetPossibleCaptures(CellViewModel from)
         {
-            int rowDiff = Math.Abs(to.Row - from.Row);
-            int colDiff = Math.Abs(to.Col - from.Col);
+            var captures = new System.Collections.Generic.List<MoveRequest>();
+            string playerColor = _gameState.CurrentPlayer;
+            string opponent = playerColor == "White" ? "Black" : "White";
 
-            // Обычный ход
-            if (rowDiff == 1 && colDiff == 1)
+            int[] rowDirs = from.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
+            int[] colDirs = { -1, 1 };
+            int[] colDeltas = { -1, 1 };
+
+            foreach (int rowDir in rowDirs)
             {
-                if (from.IsKing) return true;
-                int expectedDir = _gameState.CurrentPlayer == "White" ? -1 : 1;
-                return (to.Row - from.Row) == expectedDir;
+                foreach (int colDir in colDeltas)
+                {
+                    int jumpRow = from.Row + rowDir * 2;
+                    int jumpCol = from.Col + colDir * 2;
+
+                    if (jumpRow >= 0 && jumpRow < 8 && jumpCol >= 0 && jumpCol < 8)
+                    {
+                        int midRow = from.Row + rowDir;
+                        int midCol = from.Col + colDir;
+
+                        var midCell = GetCell(midRow, midCol);
+                        var targetCell = GetCell(jumpRow, jumpCol);
+
+                        if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
+                        {
+                            captures.Add(new MoveRequest
+                            {
+                                FromRow = from.Row,
+                                FromCol = from.Col,
+                                ToRow = jumpRow,
+                                ToCol = jumpCol
+                            });
+                        }
+                    }
+                }
             }
 
-            // Ход с взятием шашки
-            if (rowDiff == 2 && colDiff == 2)
-            {
-                int midRow = (from.Row + to.Row) / 2;
-                int midCol = (from.Col + to.Col) / 2;
-                var midCell = GetCell(midRow, midCol);
-                string opponent = _gameState.CurrentPlayer == "White" ? "Black" : "White";
-                return midCell.PieceColor == opponent;
-            }
-
-            return false;
+            return captures;
         }
 
-        /// <summary>
-        /// Отправляет запрос хода на сервер через SignalR.
-        /// </summary>
+        private System.Collections.Generic.List<MoveRequest> GetAllPossibleCaptures(string playerColor)
+        {
+            var allCaptures = new System.Collections.Generic.List<MoveRequest>();
+
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    var cell = GetCell(row, col);
+                    if (cell.PieceColor == playerColor)
+                    {
+                        var captures = GetPossibleCaptures(cell);
+                        allCaptures.AddRange(captures);
+                    }
+                }
+            }
+
+            return allCaptures;
+        }
+
+        private CellViewModel GetCell(int row, int col) => Board[row][col];
+
         private void MakeMove(CellViewModel from, CellViewModel to)
         {
-            Status = "Отправляю ход...";
+            bool isCapture = Math.Abs(to.Row - from.Row) == 2;
+
+            if (isCapture)
+            {
+                Status = "Рубим шашку...";
+            }
+            else
+            {
+                Status = "Отправляю ход...";
+            }
+
             ClearSelection();
 
             var move = new MoveRequest
@@ -254,9 +314,6 @@ namespace CheckersClient.ViewModels
             _signalRService.SendMakeMove(move);
         }
 
-        /// <summary>
-        /// Обновляет состояние доски и игрока на основе данных с сервера.
-        /// </summary>
         private void UpdateBoard(GameState state)
         {
             _gameState = state;
@@ -280,35 +337,32 @@ namespace CheckersClient.ViewModels
 
             OnPropertyChanged(nameof(Board));
             OnPropertyChanged(nameof(CurrentPlayer));
-            Status = state.IsGameOver ? $"Победа {state.Winner}!" : "Выберите свою шашку";
+
+            if (state.IsGameOver)
+            {
+                Status = $"🏆 Победа {state.Winner}! 🏆";
+            }
+            else if (state.MustContinueCapture)
+            {
+                Status = "⚡ Продолжайте взятие! Выберите следующий ход ⚡";
+            }
+            else
+            {
+                Status = $"Ход: {state.CurrentPlayer}. Выберите свою шашку";
+            }
         }
 
-        /// <summary>
-        /// Обработчик обновления состояния игры от сервера.
-        /// </summary>
         private void OnStateUpdated(GameState state) => UpdateBoard(state);
 
-        /// <summary>
-        /// Обработчик завершения игры.
-        /// </summary>
-        private void OnGameOver(string winner) => Status = $"Игра окончена! Победил {winner}";
+        private void OnGameOver(string winner) => Status = $"🏆 Игра окончена! Победил {winner} 🏆";
 
-        /// <summary>
-        /// Обработчик при отклонении хода сервером.
-        /// </summary>
-        private void OnMoveRejected(string message) => Status = $"Недопустимый ход: {message}";
+        private void OnMoveRejected(string message) => Status = $"❌ Недопустимый ход: {message}";
     }
 
-    /// <summary>
-    /// Универсальная реализация команды для биндинга действий в WPF.
-    /// </summary>
     public class RelayCommand : ICommand
     {
         private readonly Action<object?> _execute;
 
-        /// <summary>
-        /// Создаёт новую команду на основе указанного действия.
-        /// </summary>
         public RelayCommand(Action<object?> execute) => _execute = execute;
 
         public bool CanExecute(object? parameter) => true;
