@@ -361,7 +361,7 @@ namespace CheckersClient.ViewModels
 
         private void OnGameOver(string winner) => Status = $"Игра окончена! Победил {winner}";
 
-        private void OnMoveRejected(string message) => Status = $"Недопустимый ход: {message}";
+        private void OnMoveRejected(string message) => Status = $"{message}";
     }
 
     public class RelayCommand : ICommand
