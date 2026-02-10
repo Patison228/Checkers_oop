@@ -48,7 +48,7 @@ namespace CheckersClient.ViewModels
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var gameWindow = new GameWindow();
-                gameWindow.DataContext = new GameViewModel(_signalRService, state);
+                gameWindow.DataContext = new GameViewModel(_signalRService, state, "Black");
                 gameWindow.Show();
             });
         }

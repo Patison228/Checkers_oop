@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
 using System;
+using System.Collections.Generic;
 
 namespace CheckersClient.ViewModels
 {
@@ -19,6 +20,7 @@ namespace CheckersClient.ViewModels
         private CellViewModel? _selectedCell;
         private string _status = "Ожидание подключения игроков...";
         private string _currentPlayer = "";
+        private readonly string _myPlayerColor;
 
         public ObservableCollection<ObservableCollection<CellViewModel>> Board
         {
@@ -33,12 +35,14 @@ namespace CheckersClient.ViewModels
         }
 
         public string CurrentPlayer => _currentPlayer;
+        public string MyPlayerColor => _myPlayerColor;
 
         public ICommand CellClicked { get; }
 
-        public GameViewModel(SignalRService signalRService, GameState initialState)
+        public GameViewModel(SignalRService signalRService, GameState initialState, string myPlayerColor)
         {
             _signalRService = signalRService;
+            _myPlayerColor = myPlayerColor;
             _signalRService.StateUpdated += OnStateUpdated;
             _signalRService.GameOver += OnGameOver;
             _signalRService.MoveRejected += OnMoveRejected;
@@ -57,90 +61,165 @@ namespace CheckersClient.ViewModels
                 return;
             }
 
-            // Если продолжается серия взятий - можно выбрать только указанную шашку
-            if (_gameState.MustContinueCapture)
+            if (_gameState.CurrentPlayer != _myPlayerColor)
             {
-                if (cell.Row == _gameState.ContinueCaptureFromRow &&
-                    cell.Col == _gameState.ContinueCaptureFromCol)
-                {
-                    if (_selectedCell == cell)
-                    {
-                        ClearSelection();
-                        Status = "Выбор отменён. Продолжите взятие!";
-                    }
-                    else
-                    {
-                        SelectPiece(cell);
-                    }
-                }
-                else if (cell.IsPossibleMove || cell.IsMandatoryCapture)
-                {
-                    // Ход на подсвеченную клетку
-                    if (_selectedCell != null)
-                    {
-                        MakeMove(_selectedCell, cell);
-                    }
-                }
-                else
-                {
-                    Status = "Необходимо продолжить взятие текущей шашкой!";
-                }
+                Status = $"Сейчас ход противника ({_gameState.CurrentPlayer}). Ждите своего хода.";
                 return;
             }
 
             if (_selectedCell == null)
             {
-                // Первый клик - выбор шашки
-                if (cell.PieceColor == _gameState.CurrentPlayer)
+                
+                if (_gameState.MustContinueCapture)
                 {
-                    SelectPiece(cell);
+                    
+                    if (cell.Row == _gameState.ContinueCaptureFromRow &&
+                        cell.Col == _gameState.ContinueCaptureFromCol)
+                    {
+                        SelectPiece(cell);
+                    }
+                    else
+                    {
+                        Status = "Необходимо продолжить взятие указанной шашкой!";
+                    }
+                    return;
                 }
-                else
+
+                
+                if (cell.PieceColor == "None")
                 {
-                    Status = "Выберите свою шашку";
+                    Status = "Выберите свою шашку для хода";
+                    return;
                 }
+
+                if (cell.PieceColor != _myPlayerColor)
+                {
+                    Status = $"Это шашка противника ({cell.PieceColor}). Выберите свою шашку ({_myPlayerColor})";
+                    return;
+                }
+
+                SelectPiece(cell);
+                return;
             }
-            else
+
+            
+
+            if (cell == _selectedCell)
             {
-                // Второй клик
-                if (cell == _selectedCell)
-                {
-                    ClearSelection();
-                    Status = "Выбор отменён";
-                }
-                else if (cell.IsPossibleMove || cell.IsMandatoryCapture)
+                ClearSelection();
+                Status = "Выбор отменён";
+                return;
+            }
+
+            if (_gameState.MustContinueCapture)
+            {
+                if (cell.IsMandatoryCapture)
                 {
                     MakeMove(_selectedCell, cell);
                 }
-                else if (cell.PieceColor == _gameState.CurrentPlayer)
-                {
-                    // Выбрана другая своя шашка
-                    SelectPiece(cell);
-                }
                 else
                 {
-                    ClearSelection();
-                    Status = "Недопустимый ход";
+                    Status = "Необходимо продолжить взятие! Выберите подсвеченную клетку";
                 }
+                return;
             }
+
+            if (cell.IsPossibleMove || cell.IsMandatoryCapture)
+            {
+                MakeMove(_selectedCell, cell);
+                return;
+            }
+
+            if (cell.PieceColor == _myPlayerColor)
+            {
+                SelectPiece(cell);
+                return;
+            }
+
+            ClearSelection();
+            Status = "Недопустимый ход. Выберите свою шашку";
         }
 
         private void SelectPiece(CellViewModel cell)
         {
+            if (cell.PieceColor != _myPlayerColor)
+            {
+                Status = "Ошибка: нельзя выбрать чужую шашку!";
+                return;
+            }
+
             ClearSelection();
             _selectedCell = cell;
             cell.IsSelected = true;
             HighlightPossibleMoves(cell);
 
-            var captures = GetPossibleCaptures(cell);
-            if (captures.Count > 0)
+            var allPossibleCaptures = GetAllPossibleCaptures(_myPlayerColor);
+
+            if (allPossibleCaptures.Count > 0)
             {
-                Status = $"Шашка выбрана. Можно срубить {captures.Count} вариант(ов)";
+                var myCaptures = allPossibleCaptures.Where(c =>
+                    c.FromRow == cell.Row && c.FromCol == cell.Col).ToList();
+
+                if (myCaptures.Count > 0)
+                {
+                    Status = $"Шашка выбрана. Обязательное взятие: {myCaptures.Count} вариант(ов)";
+                }
+                else
+                {
+                    ClearSelection();
+                    Status = "У этой шашки нет обязательных взятий. Выберите другую шашку";
+                }
             }
             else
             {
-                Status = "Шашка выбрана. Выберите ход";
+                bool hasMoves = CheckRegularMoves(cell);
+                if (hasMoves)
+                {
+                    Status = "Шашка выбрана. Выберите клетку для хода";
+                }
+                else
+                {
+                    ClearSelection();
+                    Status = "У этой шашки нет возможных ходов. Выберите другую шашку";
+                }
             }
+        }
+
+        private bool CheckRegularMoves(CellViewModel cell)
+        {
+            
+            int[] rowDeltas;
+            if (cell.IsKing)
+            {
+                rowDeltas = new[] { -1, 1 }; 
+            }
+            else
+            {
+                
+                rowDeltas = _myPlayerColor == "White"
+                    ? new[] { -1 } 
+                    : new[] { 1 }; 
+            }
+
+            int[] colDeltas = { -1, 1 };
+
+            foreach (int rowDir in rowDeltas)
+            {
+                foreach (int colDir in colDeltas)
+                {
+                    int toRow = cell.Row + rowDir;
+                    int toCol = cell.Col + colDir;
+
+                    if (toRow >= 0 && toRow < 8 && toCol >= 0 && toCol < 8)
+                    {
+                        var toCell = GetCell(toRow, toCol);
+                        if (toCell.PieceColor == "None")
+                            return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private void ClearSelection()
@@ -155,7 +234,9 @@ namespace CheckersClient.ViewModels
 
         private void ClearHighlights()
         {
-            foreach (var row in Board ?? new())
+            if (Board == null) return;
+
+            foreach (var row in Board)
                 foreach (var cell in row)
                 {
                     cell.IsPossibleMove = false;
@@ -167,14 +248,10 @@ namespace CheckersClient.ViewModels
         {
             ClearHighlights();
 
-            string playerColor = _gameState.CurrentPlayer;
-
-            // Сначала проверяем взятия
-            var allCaptures = GetAllPossibleCaptures(playerColor);
+            var allPossibleCaptures = GetAllPossibleCaptures(_myPlayerColor);
 
             if (_gameState.MustContinueCapture)
             {
-                // Продолжение серии взятий - показываем только взятия для текущей шашки
                 var captures = GetPossibleCaptures(selected);
                 foreach (var capture in captures)
                 {
@@ -182,10 +259,9 @@ namespace CheckersClient.ViewModels
                     targetCell.IsMandatoryCapture = true;
                 }
             }
-            else if (allCaptures.Count > 0)
+            else if (allPossibleCaptures.Count > 0)
             {
-                // Есть взятия - показываем только взятия для выбранной шашки
-                var captures = allCaptures.Where(c =>
+                var captures = allPossibleCaptures.Where(c =>
                     c.FromRow == selected.Row && c.FromCol == selected.Col).ToList();
 
                 foreach (var capture in captures)
@@ -196,14 +272,26 @@ namespace CheckersClient.ViewModels
             }
             else
             {
-                // Обычные ходы
-                HighlightRegularMoves(selected, playerColor);
+                HighlightRegularMoves(selected, _myPlayerColor);
             }
         }
 
         private void HighlightRegularMoves(CellViewModel selected, string playerColor)
         {
-            int[] rowDeltas = selected.IsKing ? new[] { -1, 1 } : new[] { playerColor == "White" ? -1 : 1 };
+            
+            int[] rowDeltas;
+            if (selected.IsKing)
+            {
+                rowDeltas = new[] { -1, 1 }; 
+            }
+            else
+            {
+                
+                rowDeltas = playerColor == "White"
+                    ? new[] { -1 }
+                    : new[] { 1 }; 
+            }
+
             int[] colDeltas = { -1, 1 };
 
             foreach (int rowDir in rowDeltas)
@@ -225,20 +313,15 @@ namespace CheckersClient.ViewModels
 
         /// <summary>
         /// Возвращает возможные взятия для конкретной шашки.
-        /// простая шашка рубит во все 4 диагональных направления.
         /// </summary>
-        private System.Collections.Generic.List<MoveRequest> GetPossibleCaptures(CellViewModel from)
+        private List<MoveRequest> GetPossibleCaptures(CellViewModel from)
         {
-            var captures = new System.Collections.Generic.List<MoveRequest>();
-            string playerColor = _gameState.CurrentPlayer;
-            string opponent = playerColor == "White" ? "Black" : "White";
+            var captures = new List<MoveRequest>();
+            string opponent = _myPlayerColor == "White" ? "Black" : "White";
 
-            System.Collections.Generic.List<(int rowDir, int colDir)> directions = new()
+            List<(int rowDir, int colDir)> directions = new()
             {
-                (-1, -1), 
-                (-1, 1),  
-                (1, -1),  
-                (1, 1)    
+                (-1, -1), (-1, 1), (1, -1), (1, 1)
             };
 
             foreach (var (rowDir, colDir) in directions)
@@ -256,6 +339,7 @@ namespace CheckersClient.ViewModels
 
                     if (midCell.PieceColor == opponent && targetCell.PieceColor == "None")
                     {
+
                         captures.Add(new MoveRequest
                         {
                             FromRow = from.Row,
@@ -270,9 +354,9 @@ namespace CheckersClient.ViewModels
             return captures;
         }
 
-        private System.Collections.Generic.List<MoveRequest> GetAllPossibleCaptures(string playerColor)
+        private List<MoveRequest> GetAllPossibleCaptures(string playerColor)
         {
-            var allCaptures = new System.Collections.Generic.List<MoveRequest>();
+            var allCaptures = new List<MoveRequest>();
 
             for (int row = 0; row < 8; row++)
             {
@@ -324,7 +408,7 @@ namespace CheckersClient.ViewModels
             _gameState = state;
             _currentPlayer = state.CurrentPlayer;
 
-            Board = new ObservableCollection<ObservableCollection<CellViewModel>>();
+            var newBoard = new ObservableCollection<ObservableCollection<CellViewModel>>();
             for (int r = 0; r < 8; r++)
             {
                 var row = new ObservableCollection<CellViewModel>();
@@ -337,31 +421,66 @@ namespace CheckersClient.ViewModels
                         IsKing = cellData.IsKing
                     });
                 }
-                Board.Add(row);
+                newBoard.Add(row);
             }
+
+            Board = newBoard;
 
             OnPropertyChanged(nameof(Board));
             OnPropertyChanged(nameof(CurrentPlayer));
 
             if (state.IsGameOver)
             {
-                Status = $"Победа {state.Winner}!";
+                Status = $"Игра окончена! Победил {state.Winner}!";
+                ClearSelection();
             }
             else if (state.MustContinueCapture)
             {
-                Status = "Продолжайте взятие! Выберите следующий ход";
+                if (state.CurrentPlayer == _myPlayerColor)
+                {
+                    Status = "Продолжайте взятие! Выберите следующий ход";
+                    if (state.ContinueCaptureFromRow >= 0 && state.ContinueCaptureFromCol >= 0)
+                    {
+                        var continueCell = GetCell(state.ContinueCaptureFromRow, state.ContinueCaptureFromCol);
+                        if (continueCell != null && continueCell.PieceColor == _myPlayerColor)
+                        {
+                            SelectPiece(continueCell);
+                        }
+                    }
+                }
+                else
+                {
+                    Status = $"Противник продолжает взятие. Ждите своего хода.";
+                    ClearSelection();
+                }
             }
             else
             {
-                Status = $"Ход: {state.CurrentPlayer}. Выберите свою шашку";
+                if (state.CurrentPlayer == _myPlayerColor)
+                {
+                    Status = $"Ваш ход ({_myPlayerColor}). Выберите свою шашку";
+                }
+                else
+                {
+                    Status = $"Ход противника ({state.CurrentPlayer}). Ждите своего хода.";
+                    ClearSelection();
+                }
             }
         }
 
         private void OnStateUpdated(GameState state) => UpdateBoard(state);
 
-        private void OnGameOver(string winner) => Status = $"Игра окончена! Победил {winner}";
+        private void OnGameOver(string winner)
+        {
+            Status = $"Игра окончена! Победил {winner}";
+            ClearSelection();
+        }
 
-        private void OnMoveRejected(string message) => Status = $"{message}";
+        private void OnMoveRejected(string message)
+        {
+            Status = $"Ошибка: {message}";
+            ClearSelection();
+        }
     }
 
     public class RelayCommand : ICommand
