@@ -79,7 +79,6 @@ namespace CheckersServer
                 !game.IsGameStarted || game.IsGameOver)
                 return false;
 
-            // Если продолжается серия взятий, можно ходить только выбранной шашкой
             if (game.MustContinueCapture)
             {
                 if (move.FromRow != game.ContinueCaptureFromRow || move.FromCol != game.ContinueCaptureFromCol)
@@ -93,13 +92,11 @@ namespace CheckersServer
 
             ApplyMove(game, move, playerColor);
 
-            // Проверяем, может ли эта шашка продолжить взятие
             if (isCapture)
             {
                 var furtherCaptures = GetPossibleCaptures(game, move.ToRow, move.ToCol, playerColor);
                 if (furtherCaptures.Count > 0)
                 {
-                    // Продолжаем серию взятий
                     game.MustContinueCapture = true;
                     game.ContinueCaptureFromRow = move.ToRow;
                     game.ContinueCaptureFromCol = move.ToCol;
@@ -108,13 +105,11 @@ namespace CheckersServer
                 }
             }
 
-            // Серия взятий завершена или это был обычный ход - передаём ход
             game.MustContinueCapture = false;
             game.ContinueCaptureFromRow = -1;
             game.ContinueCaptureFromCol = -1;
             game.CurrentPlayer = game.CurrentPlayer == "White" ? "Black" : "White";
 
-            // Проверка окончания игры
             if (IsNoPiecesForOpponent(game, playerColor))
             {
                 game.IsGameOver = true;
@@ -184,13 +179,11 @@ namespace CheckersServer
             int rowDiff = Math.Abs(move.ToRow - move.FromRow);
             int colDiff = Math.Abs(move.ToCol - move.FromCol);
 
-            // Проверка на обязательное взятие (если не продолжается серия)
             if (!game.MustContinueCapture)
             {
                 var allCaptures = GetAllPossibleCaptures(game, playerColor);
                 if (allCaptures.Count > 0)
                 {
-                    // Есть возможность взятия - разрешены только ходы со взятием
                     if (rowDiff != 2 || colDiff != 2)
                         return false;
 
@@ -205,17 +198,14 @@ namespace CheckersServer
                 }
             }
 
-            // Обычный ход (1 клетка по диагонали)
             if (rowDiff == 1 && colDiff == 1)
             {
                 if (from.IsKing) return true;
 
-                // Простая шашка ходит только вперёд
                 int dir = playerColor == "White" ? -1 : 1;
                 return (move.ToRow - move.FromRow) == dir;
             }
 
-            // Взятие (2 клетки по диагонали)
             if (rowDiff == 2 && colDiff == 2)
             {
                 int midRow = (move.FromRow + move.ToRow) / 2;
@@ -224,7 +214,6 @@ namespace CheckersServer
 
                 string opponent = playerColor == "White" ? "Black" : "White";
 
-                // Простая шашка рубит во все стороны (русские шашки)
                 return midCell.PieceColor == opponent;
             }
 
@@ -265,8 +254,6 @@ namespace CheckersServer
 
         /// <summary>
         /// Возвращает все возможные взятия для указанной шашки.
-        /// ПРАВИЛО РУССКИХ ШАШЕК: простая шашка рубит вперёд И назад (во все 4 диагональных направления).
-        /// Обычные ходы - только вперёд, но рубание - во все стороны!
         /// </summary>
         private List<MoveRequest> GetPossibleCaptures(GameState game, int row, int col, string playerColor)
         {
@@ -278,14 +265,13 @@ namespace CheckersServer
 
             string opponent = playerColor == "White" ? "Black" : "White";
 
-            // Все 4 диагональных направления для рубания
-            // (и простая шашка, и дамка рубят во все стороны)
+
             List<(int rowDir, int colDir)> directions = new()
             {
-                (-1, -1), // вверх-влево
-                (-1, 1),  // вверх-вправо
-                (1, -1),  // вниз-влево
-                (1, 1)    // вниз-вправо
+                (-1, -1), 
+                (-1, 1),  
+                (1, -1),  
+                (1, 1)    
             };
 
             foreach (var (rowDir, colDir) in directions)

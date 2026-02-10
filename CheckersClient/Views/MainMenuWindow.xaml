@@ -1,7 +1,8 @@
 ﻿<Window x:Class="CheckersClient.Views.MainMenuWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Шашки Ватруна" Height="300" Width="400">
+        Title="Шашки Ватруна" Height="300" Width="400"
+        Background="#34495E">
     
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20">
         <TextBlock Text="Шашки Ватруна" FontSize="24" 

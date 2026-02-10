@@ -225,7 +225,7 @@ namespace CheckersClient.ViewModels
 
         /// <summary>
         /// Возвращает возможные взятия для конкретной шашки.
-        /// ПРАВИЛО РУССКИХ ШАШЕК: простая шашка рубит во все 4 диагональных направления.
+        /// простая шашка рубит во все 4 диагональных направления.
         /// </summary>
         private System.Collections.Generic.List<MoveRequest> GetPossibleCaptures(CellViewModel from)
         {
@@ -233,14 +233,12 @@ namespace CheckersClient.ViewModels
             string playerColor = _gameState.CurrentPlayer;
             string opponent = playerColor == "White" ? "Black" : "White";
 
-            // Все 4 диагональных направления для рубания
-            // (и простая шашка, и дамка рубят во все стороны)
             System.Collections.Generic.List<(int rowDir, int colDir)> directions = new()
             {
-                (-1, -1), // вверх-влево
-                (-1, 1),  // вверх-вправо
-                (1, -1),  // вниз-влево
-                (1, 1)    // вниз-вправо
+                (-1, -1), 
+                (-1, 1),  
+                (1, -1),  
+                (1, 1)    
             };
 
             foreach (var (rowDir, colDir) in directions)
