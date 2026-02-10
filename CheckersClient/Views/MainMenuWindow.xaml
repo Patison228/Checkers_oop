@@ -5,12 +5,44 @@
         Background="#34495E">
     
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20">
-        <TextBlock Text="Шашки Ватруна" FontSize="24" 
-               HorizontalAlignment="Center" Margin="0,0,0,40"/>
+        
+        <TextBlock Text="Шашки Ватруна" 
+                   FontSize="24"
+                   Foreground="White"
+                   HorizontalAlignment="Center" 
+                   Margin="0,0,0,40"/>
 
-        <Button Content="Создать комнату" Height="60" FontSize="18" Margin="0,10"
-            Click="CreateRoom_Click"/>
-        <Button Content="Подключиться к комнате" Height="60" FontSize="18" Margin="0,10"
-            Click="JoinRoom_Click"/>
+        <Button Content="Создать комнату" 
+                Height="60" 
+                FontSize="18" 
+                Margin="0,10"
+                Click="CreateRoom_Click"
+                Background="White"
+                BorderBrush="#DDDDDD"
+                BorderThickness="1">
+
+            <Button.Resources>
+                <Style TargetType="Border">
+                    <Setter Property="CornerRadius" Value="8"/>
+                </Style>
+            </Button.Resources>
+        </Button>
+
+        <Button Content="Подключиться к комнате" 
+                Height="60" 
+                FontSize="18" 
+                Margin="0,10"
+                Click="JoinRoom_Click"
+                Background="White"
+                BorderBrush="#DDDDDD"
+                BorderThickness="1">
+            
+            <Button.Resources>
+                <Style TargetType="Border">
+                    <Setter Property="CornerRadius" Value="8"/>
+                </Style>
+            </Button.Resources>
+        </Button>
+
     </StackPanel>
 </Window>
